@@ -1,0 +1,48 @@
+/* Match checkbox styling to form-control */
+.custom-checkbox {
+  margin-bottom: 0.5rem;
+}
+
+.custom-checkbox .form-check-input {
+  margin-top: 0.25rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.custom-checkbox .form-check-label {
+  color: #333;
+  font-size: 1rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+/* Hover and focus states */
+.custom-checkbox .form-check-input:hover,
+.custom-checkbox .form-check-input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Match action button styling for consistency */
+.action-button, .action-button-mini {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.action-button:hover, .action-button-mini:hover {
+  background-color: #0056b3;
+}
+
+.results-section {
+  padding: 1rem;
+}
+
+.panel-header {
+  background-color: #007bff;
+  padding: 0.5rem;
+  border-radius: 0.25rem 0.25rem 0 0;
+}

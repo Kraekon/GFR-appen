@@ -297,7 +297,6 @@ server <- function(input, output, session) {
       
     } else if (num_points == 2 || num_points == 4) {
       
-      # --- NEW HELPER FOR MULTILINE SUB-RESULTS ---
       format_sub_result_multiline <- function(label, result) {
         abs_gfr <- if (is_valid_num(result$gfr)) sprintf("%.1f", result$gfr) else "N/A"
         rel_gfr <- if (is_valid_num(result$gfr_adj)) sprintf("%.1f", result$gfr_adj) else "N/A"
@@ -314,7 +313,6 @@ server <- function(input, output, session) {
         )
       }
       
-      # --- 2-POINT CALCULATION (WITH ENHANCEMENT) ---
       if (num_points == 2) {
         req(input$io_sample_time1, input$io_conc_p1, input$io_sample_time2, input$io_conc_p2)
         
@@ -349,10 +347,13 @@ server <- function(input, output, session) {
                 
                 hr(style = "margin-top: 20px; margin-bottom: 20px;"),
                 
-                h5("Enpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
-                fluidRow(
-                  column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
-                  column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]]))
+                tags$button("Visa enpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_sub_2pt"),
+                
+                div(class="collapse", id="collapse_sub_2pt", style="margin-top: 15px;",
+                    fluidRow(
+                      column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
+                      column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]]))
+                    )
                 )
               )
             )
@@ -378,7 +379,6 @@ server <- function(input, output, session) {
             theme(axis.title = element_text(face = "bold"), plot.title = element_text(hjust = 0.5, face = "bold"))
         })
         
-        # --- 4-POINT CALCULATION (WITH ENHANCED SUB-CALCULATIONS) ---
       } else if (num_points == 4) {
         req(input$io_sample_time1, input$io_conc_p1, input$io_sample_time2, input$io_conc_p2,
             input$io_sample_time3, input$io_conc_p3, input$io_sample_time4, input$io_conc_p4)
@@ -397,21 +397,17 @@ server <- function(input, output, session) {
         
         bsa <- bsa_select(weight, height, sex, bsa_formula)
         
-        # --- Main 4-point calculation ---
         result_4pt <- slope_intercept_gfr(times_min, concs_num, dose_mg, bsa)
         
-        # --- All 1-point calculations ---
         results_1pt <- lapply(1:4, function(i) {
           iohexol_one_point_gfr(sex, weight, height, dose_mg, concs_num[i], times_min[i], bsa_formula)
         })
         
-        # --- All 2-point calculations ---
         point_pairs <- list(c(1,2), c(1,3), c(1,4), c(2,3), c(2,4), c(3,4))
         results_2pt <- lapply(point_pairs, function(pair) {
           slope_intercept_gfr(times_min[pair], concs_num[pair], dose_mg, bsa)
         })
         
-        # --- UI Rendering ---
         output$io_result_ui <- renderUI({
           if (is.na(result_4pt$gfr) || is.na(result_4pt$gfr_adj)) {
             tags$div(style = "color: red;", "Ogiltiga indata eller beräkning misslyckades.")
@@ -419,38 +415,43 @@ server <- function(input, output, session) {
             tagList(
               tags$div(
                 style = "background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
-                # Main result
                 tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Absolut mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result_4pt$gfr), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min"))),
                 tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Relativt mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result_4pt$gfr_adj), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min/1.73m²"))),
                 
                 hr(style = "margin-top: 20px; margin-bottom: 20px;"),
                 
-                # 2-point results
-                h5("Tvåpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
-                fluidRow(
-                  column(6, format_sub_result_multiline("Prov 1 och 2:", results_2pt[[1]])),
-                  column(6, format_sub_result_multiline("Prov 2 och 3:", results_2pt[[4]]))
-                ),
-                fluidRow(
-                  column(6, format_sub_result_multiline("Prov 1 och 3:", results_2pt[[2]])),
-                  column(6, format_sub_result_multiline("Prov 2 och 4:", results_2pt[[5]]))
-                ),
-                fluidRow(
-                  column(6, format_sub_result_multiline("Prov 1 och 4:", results_2pt[[3]])),
-                  column(6, format_sub_result_multiline("Prov 3 och 4:", results_2pt[[6]]))
+                div(style="display: flex; gap: 10px; margin-bottom: 15px;",
+                    tags$button("Visa tvåpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_2pt_calcs"),
+                    tags$button("Visa enpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_1pt_calcs")
                 ),
                 
-                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
-                
-                # 1-point results
-                h5("Enpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
-                fluidRow(
-                  column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
-                  column(6, format_sub_result_multiline("Prov 3:", results_1pt[[3]]))
+                div(class="collapse", id="collapse_2pt_calcs",
+                    h5("Tvåpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
+                    fluidRow(
+                      column(6, format_sub_result_multiline("Prov 1 och 2:", results_2pt[[1]])),
+                      column(6, format_sub_result_multiline("Prov 2 och 3:", results_2pt[[4]]))
+                    ),
+                    fluidRow(
+                      column(6, format_sub_result_multiline("Prov 1 och 3:", results_2pt[[2]])),
+                      column(6, format_sub_result_multiline("Prov 2 och 4:", results_2pt[[5]]))
+                    ),
+                    fluidRow(
+                      column(6, format_sub_result_multiline("Prov 1 och 4:", results_2pt[[3]])),
+                      column(6, format_sub_result_multiline("Prov 3 och 4:", results_2pt[[6]]))
+                    ),
+                    hr(style = "margin-top: 20px; margin-bottom: 20px;")
                 ),
-                fluidRow(
-                  column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]])),
-                  column(6, format_sub_result_multiline("Prov 4:", results_1pt[[4]]))
+                
+                div(class="collapse", id="collapse_1pt_calcs",
+                    h5("Enpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
+                    fluidRow(
+                      column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
+                      column(6, format_sub_result_multiline("Prov 3:", results_1pt[[3]]))
+                    ),
+                    fluidRow(
+                      column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]])),
+                      column(6, format_sub_result_multiline("Prov 4:", results_1pt[[4]]))
+                    )
                 )
               )
             )

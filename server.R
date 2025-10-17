@@ -1,5 +1,4 @@
 source("global.R")
-library(shinyjs) # Import shinyjs
 
 server <- function(input, output, session) {
   # Run once after session is flushed to set UI defaults where necessary.
@@ -39,7 +38,6 @@ server <- function(input, output, session) {
   observeEvent(input$age_child, {
     age <- input$age_child
     
-    # Helper function to manage checkbox state
     manage_checkbox <- function(id, condition, value) {
       if (is.na(age) || !condition) {
         shinyjs::disable(id)
@@ -49,7 +47,6 @@ server <- function(input, output, session) {
       }
     }
     
-    # Apply conditions
     manage_checkbox("formula_child_CKiD_U25", age >= 1, "CKiD_U25")
     manage_checkbox("formula_child_EKFC_child", age >= 2, "EKFC_child")
     manage_checkbox("formula_child_LMR18_child", age >= 2 && age < 18, "LMR18_child")
@@ -58,18 +55,11 @@ server <- function(input, output, session) {
     
   }, ignoreNULL = FALSE)
   
-  # Validate HH:MM time format (simple wrapper)
-  validate_time <- function(time) {
-    if (!is.character(time) || time == "") return(FALSE)
-    grepl("^([0-1][0-9]|2[0-3]):[0-5][0-9]$", time)
-  }
-  
   # --- eGFR (Adults) Section ---
   
   output$adult_results_ui <- renderUI({
     age_val <- input$age
     if (is.na(age_val)) {
-      # No age input, show normal UI
       tagList(
         DT::dataTableOutput("resultsTable_adult"),
         uiOutput("selectedMean_adult"),
@@ -80,10 +70,8 @@ server <- function(input, output, session) {
         )
       )
     } else if (age_val < 18) {
-      # Age is for a child, show message
       tags$div(class = "alert alert-warning", role = "alert", "Använd beräkning för barn")
     } else {
-      # Age is for an adult, show normal UI
       tagList(
         DT::dataTableOutput("resultsTable_adult"),
         uiOutput("selectedMean_adult"),
@@ -100,54 +88,52 @@ server <- function(input, output, session) {
     rows <- data.frame(Resultat = character(), Value = character(), stringsAsFactors = FALSE)
     scr_mgdl <- if (is_valid_num(scr_umol)) scr_umol / 88.4 else NA
     
+    # Centralized Q-value calculations
+    q_sex_age_adj <- calculate_q_cysc(age, sex)
+    q_age_adj_rlmr <- calculate_q_cysc(age)
+    
     if ("EKFC" %in% formulas) {
-      # Creatinine calculation for adults
       if (is_valid_num(scr_mgdl)) {
-        q_cr <- ifelse(sex == "Man", 0.9, 0.7)
-        gfr_cr <- ekfc_gfr(scr_mgdl, q_cr, -0.322, -1.132)
+        gfr_cr <- ekfc_gfr(scr_mgdl, ifelse(sex == "Man", 0.9, 0.7), -0.322, -1.132)
         rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin)", Value = round(gfr_cr, 0)))
       }
-      
-      # Cystatin C calculation for adults (standard Q)
       if (is_valid_num(scys)) {
-        q_cys <- 0.83
-        gfr_cys <- ekfc_gfr(scys, q_cys, -0.322, -1.132)
+        gfr_cys <- ekfc_gfr(scys, 0.83, -0.322, -1.132)
         rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)", Value = round(gfr_cys, 0)))
-        
-        # Cystatin C calculation for adults (sex-adjusted Q)
-        q_cys_sexadj <- q_cysc_sexadj(sex, age)
-        if (!is.na(q_cys_sexadj)) {
-          gfr_cys_sexadj <- ekfc_gfr(scys, q_cys_sexadj, -0.322, -1.132)
+        if (!is.na(q_sex_age_adj)) {
+          gfr_cys_sexadj <- ekfc_gfr(scys, q_sex_age_adj, -0.322, -1.132)
           rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)*", Value = round(gfr_cys_sexadj, 0)))
         }
       }
-      
-      # Combined calculations
       if (is_valid_num(scr_mgdl) && is_valid_num(scys)) {
-        q_cr <- ifelse(sex == "Man", 0.9, 0.7)
-        q_cys <- 0.83
-        gfr_cr <- ekfc_gfr(scr_mgdl, q_cr, -0.322, -1.132)
-        gfr_cys <- ekfc_gfr(scys, q_cys, -0.322, -1.132)
+        gfr_cr <- ekfc_gfr(scr_mgdl, ifelse(sex == "Man", 0.9, 0.7), -0.322, -1.132)
+        gfr_cys <- ekfc_gfr(scys, 0.83, -0.322, -1.132)
         rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)", Value = round((gfr_cr + gfr_cys) / 2, 0)))
-        
-        q_cys_sexadj <- q_cysc_sexadj(sex, age)
-        if (!is.na(q_cys_sexadj)) {
-          gfr_cys_sexadj <- ekfc_gfr(scys, q_cys_sexadj, -0.322, -1.132)
+        if (!is.na(q_sex_age_adj)) {
+          gfr_cys_sexadj <- ekfc_gfr(scys, q_sex_age_adj, -0.322, -1.132)
           rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)*", Value = round((gfr_cr + gfr_cys_sexadj) / 2, 0)))
         }
       }
     }
     if ("FAS" %in% formulas) {
-      if (is_valid_num(scr_mgdl)) {
-        rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin)", Value = round(fas_gfr_cr(scr_mgdl, sex, age), 0)))
-      }
+      if (is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin)", Value = round(fas_gfr_cr(scr_mgdl, age), 0)))
       if (is_valid_num(scys)) {
         rows <- rbind(rows, data.frame(Resultat = "FAS (cystatin C)", Value = round(fas_gfr_cys(scys, age), 0)))
-        rows <- rbind(rows, data.frame(Resultat = "FAS (cystatin C)*", Value = round(fas_gfr_cys_sexadj(scys, sex, age), 0)))
+        if(!is.na(q_sex_age_adj)) {
+          gfr_fas_sex_adj <- 107.3 / (scys / q_sex_age_adj)
+          if (age > 40) gfr_fas_sex_adj <- gfr_fas_sex_adj * (0.988^(age - 40))
+          rows <- rbind(rows, data.frame(Resultat = "FAS (cystatin C)*", Value = round(gfr_fas_sex_adj, 0)))
+        }
       }
       if (is_valid_num(scr_mgdl) && is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin & cystatin C)", Value = round((fas_gfr_cr(scr_mgdl, sex, age) + fas_gfr_cys(scys, age)) / 2, 0)))
-        rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin & cystatin C)*", Value = round((fas_gfr_cr(scr_mgdl, sex, age) + fas_gfr_cys_sexadj(scys, sex, age)) / 2, 0)))
+        gfr_fas_cr <- fas_gfr_cr(scr_mgdl, age)
+        gfr_fas_cys <- fas_gfr_cys(scys, age)
+        rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin & cystatin C)", Value = round((gfr_fas_cr + gfr_fas_cys) / 2, 0)))
+        if(!is.na(q_sex_age_adj)) {
+          gfr_fas_sex_adj <- 107.3 / (scys / q_sex_age_adj)
+          if (age > 40) gfr_fas_sex_adj <- gfr_fas_sex_adj * (0.988^(age - 40))
+          rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin & cystatin C)*", Value = round((gfr_fas_cr + gfr_fas_sex_adj) / 2, 0)))
+        }
       }
     }
     if ("r-LMR" %in% formulas) {
@@ -155,101 +141,56 @@ server <- function(input, output, session) {
         rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin)", Value = round(r_lmr_gfr_cr(scr_umol, sex, age), 0)))
       }
       if (is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "r-LMR (cystatin C)", Value = round(r_lmr_gfr_cys(scys, age), 0)))
-        rows <- rbind(rows, data.frame(Resultat = "r-LMR (cystatin C)*", Value = round(r_lmr_gfr_cys_sexadj(scys, sex, age), 0)))
+        rows <- rbind(rows, data.frame(Resultat = "r-LMR (cystatin C)", Value = round(r_lmr_gfr_cys(scys, age, q_age_adj_rlmr), 0)))
+        rows <- rbind(rows, data.frame(Resultat = "r-LMR (cystatin C)*", Value = round(r_lmr_gfr_cys(scys, age, q_sex_age_adj), 0)))
       }
       if (is_valid_num(scr_umol) && is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin & cystatin C)", Value = round((r_lmr_gfr_cr(scr_umol, sex, age) + r_lmr_gfr_cys(scys, age)) / 2, 0)))
-        rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin & cystatin C)*", Value = round((r_lmr_gfr_cr(scr_umol, sex, age) + r_lmr_gfr_cys_sexadj(scys, sex, age)) / 2, 0)))
+        gfr_cr <- r_lmr_gfr_cr(scr_umol, sex, age)
+        gfr_cys_age <- r_lmr_gfr_cys(scys, age, q_age_adj_rlmr)
+        gfr_cys_sex_age <- r_lmr_gfr_cys(scys, age, q_sex_age_adj)
+        
+        rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin & cystatin C)", Value = round((gfr_cr + gfr_cys_age) / 2, 0)))
+        rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin & cystatin C)*", Value = round((gfr_cr + gfr_cys_sex_age) / 2, 0)))
       }
     }
     if ("CKD-EPI (2021)" %in% formulas) {
-      if (is_valid_num(scr_umol)) {
-        rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (kreatinin)", Value = round(ckdepi2021_gfr_cr(scr_umol, sex, age), 0)))
-      }
-      if (is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (cystatin C)", Value = round(ckdepi2021_gfr_cys(scys, sex, age), 0)))
-      }
-      if (is_valid_num(scr_umol) && is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (kreatinin & cystatin C)", Value = round(ckdepi2021_gfr_cr_cys(scr_umol, scys, sex, age), 0)))
-      }
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (kreatinin)", Value = round(ckdepi2021_gfr_cr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (cystatin C)", Value = round(ckdepi2021_gfr_cys(scys, sex, age), 0)))
+      if (is_valid_num(scr_umol) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (kreatinin & cystatin C)", Value = round(ckdepi2021_gfr_cr_cys(scr_umol, scys, sex, age), 0)))
     }
-    if ("LMR18" %in% formulas) {
-      if (is_valid_num(scr_umol)) {
-        rows <- rbind(rows, data.frame(Resultat = "LMR18 (kreatinin)", Value = round(lmr18_gfr_cr(scr_umol, sex, age), 0)))
-      }
-    }
-    if ("CAPA" %in% formulas) {
-      if (is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "CAPA (cystatin C)", Value = round(capa_gfr_cys(scys, age), 0)))
-      }
-    }
-    if ("MDRD" %in% formulas) {
-      if (is_valid_num(scr_umol)) {
-        rows <- rbind(rows, data.frame(Resultat = "MDRD (kreatinin)", Value = round(mdrd_gfr(scr_umol, sex, age), 0)))
-      }
-    }
-    if ("BIS" %in% formulas && is_valid_num(age) && age >= 70) {
-      if (is_valid_num(scr_umol)) {
-        rows <- rbind(rows, data.frame(Resultat = "BIS (kreatinin)", Value = round(bis_gfr(scr_umol, sex, age), 0)))
-      }
-    }
+    if ("LMR18" %in% formulas && is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "LMR18 (kreatinin)", Value = round(lmr18_gfr_cr(scr_umol, sex, age), 0)))
+    if ("CAPA" %in% formulas && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CAPA (cystatin C)", Value = round(capa_gfr_cys(scys, age), 0)))
+    if ("MDRD" %in% formulas && is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "MDRD (kreatinin)", Value = round(mdrd_gfr(scr_umol, sex, age), 0)))
+    if ("BIS" %in% formulas && is_valid_num(age) && age >= 70 && is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "BIS (kreatinin)", Value = round(bis_gfr(scr_umol, sex, age), 0)))
+    
     return(rows)
   }
   
   egfr_results_adult <- reactive({
     req(input$age, input$age >= 18, input$sex, input$formulas_adult)
-    if (!is_valid_num(input$age) || !input$sex %in% c("Man", "Kvinna")) {
-      return(data.frame(Resultat = character(), Value = character(), stringsAsFactors = FALSE))
-    }
     calc_egfr_adult(input$creatinine, input$cysc, input$sex, input$age, input$formulas_adult)
   })
   
   output$resultsTable_adult <- DT::renderDataTable({
     result <- egfr_results_adult()
     if (nrow(result) == 0) return(NULL)
-    datatable(
-      result,
-      options = list(
-        paging = FALSE, searching = FALSE, ordering = FALSE, info = FALSE,
-        columnDefs = list(list(className = 'dt-center', targets = '_all')),
-        language = list(emptyTable = "Inga resultat att visa")
-      ),
-      rownames = FALSE,
-      selection = 'multiple'
-    )
+    datatable(result, options = list(paging = FALSE, searching = FALSE, ordering = FALSE, info = FALSE, columnDefs = list(list(className = 'dt-center', targets = '_all'))), rownames = FALSE)
   })
   
   output$selectedMean_adult <- renderUI({
-    req(input$resultsTable_adult_rows_selected)
     selected <- input$resultsTable_adult_rows_selected
-    results <- egfr_results_adult()
-    if (length(selected) > 0 && nrow(results) > 0) {
+    if (length(selected) > 0) {
+      results <- egfr_results_adult()
       mean_val <- mean(as.numeric(results$Value[selected]), na.rm = TRUE)
-      if (is_valid_num(mean_val)) {
-        tags$div(style = "margin-top: 10px;", paste("Medelvärde av valda rader:", round(mean_val, 0), "mL/min/1.73m²"))
-      }
+      tags$div(style = "margin-top: 10px;", paste("Medelvärde av valda rader:", round(mean_val, 0), "mL/min/1.73m²"))
     }
   })
   
   output$asteriskNote_adult <- renderUI({
     results <- egfr_results_adult()
     if (nrow(results) > 0 && any(grepl("\\*", results$Resultat))) {
-      tags$div(style = "font-size: 0.8em; color: #666; margin-top: 10px;", "* Beräknat med könsspecifik Q-faktor för cystatin C")
+      tags$div(style = "font-size: 0.8em; color: #666; margin-top: 10px;", "* Beräknat med köns- och åldersjusterad Q-faktor för cystatin C")
     }
-  })
-  
-  observeEvent(input$clear_adult, {
-    updateNumericInput(session, "age", value = NA)
-    updateSelectInput(session, "sex", selected = "Man")
-    updateNumericInput(session, "creatinine", value = NA)
-    updateNumericInput(session, "cysc", value = NA)
-    updateCheckboxGroupInput(session, "formulas_adult", selected = c("EKFC"))
-    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_adult"), selected = NULL)
-  })
-  
-  observeEvent(input$clear_selection_adult, {
-    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_adult"), selected = NULL)
   })
   
   # --- eGFR (Children) Section ---
@@ -257,7 +198,6 @@ server <- function(input, output, session) {
   output$child_results_ui <- renderUI({
     age_val <- input$age_child
     if (is.na(age_val)) {
-      # No age input, show normal UI
       tagList(
         DT::dataTableOutput("resultsTable_child"),
         uiOutput("selectedMean_child"),
@@ -268,10 +208,8 @@ server <- function(input, output, session) {
         )
       )
     } else if (age_val > 18) {
-      # Age is for an adult, show message
       tags$div(class = "alert alert-warning", role = "alert", "Använd beräkning för vuxna")
     } else {
-      # Age is for a child, show normal UI
       tagList(
         DT::dataTableOutput("resultsTable_child"),
         uiOutput("selectedMean_child"),
@@ -292,146 +230,77 @@ server <- function(input, output, session) {
     if ("Schwartz" %in% formulas && is_valid_num(scr_mgdl) && is_valid_num(height)) {
       rows <- rbind(rows, data.frame(Resultat = "Schwartz (0 - 18 år)", Value = round(schwartz_gfr(height, scr_mgdl), 0)))
     }
-    
     if ("CKiD_U25" %in% formulas && age >= 1) {
-      gfr_scr <- NA
-      gfr_cys <- NA
-      
-      if (is_valid_num(scr_mgdl) && is_valid_num(height_m)) {
-        gfr_scr <- ckid_u25_scr(sex, age, height_m, scr_mgdl)
-        rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (kreatinin)", Value = round(gfr_scr, 0)))
-      }
-      if (is_valid_num(scys)) {
-        gfr_cys <- ckid_u25_cys(sex, age, scys)
-        rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (cystatin C)", Value = round(gfr_cys, 0)))
-      }
-      if (is_valid_num(gfr_scr) && is_valid_num(gfr_cys)) {
-        rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (medel)", Value = round((gfr_scr + gfr_cys) / 2, 0)))
-      }
+      gfr_scr <- if (is_valid_num(scr_mgdl) && is_valid_num(height_m)) ckid_u25_scr(sex, age, height_m, scr_mgdl) else NA
+      gfr_cys <- if (is_valid_num(scys)) ckid_u25_cys(sex, age, scys) else NA
+      if(!is.na(gfr_scr)) rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (kreatinin)", Value = round(gfr_scr, 0)))
+      if(!is.na(gfr_cys)) rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (cystatin C)", Value = round(gfr_cys, 0)))
+      if(!is.na(gfr_scr) && !is.na(gfr_cys)) rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (medel)", Value = round((gfr_scr + gfr_cys) / 2, 0)))
     }
-    
     if ("EKFC_child" %in% formulas && age >= 2) {
-      gfr_cr <- NA
-      gfr_cys <- NA
-      if (is_valid_num(scr_umol)) {
-        q_cr_umol <- q_cr_child(sex, age)
-        gfr_cr <- ekfc_gfr(scr_umol, q_cr_umol, -0.322, -1.132)
-        rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin)", Value = round(gfr_cr, 0)))
-      }
-      if (is_valid_num(scys)) {
-        q_cys <- 0.83
-        gfr_cys <- ekfc_gfr(scys, q_cys, -0.322, -1.132)
-        rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)", Value = round(gfr_cys, 0)))
-      }
-      if (is_valid_num(gfr_cr) && is_valid_num(gfr_cys)) {
-        rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)", Value = round((gfr_cr + gfr_cys) / 2, 0)))
-      }
+      gfr_cr <- if(is_valid_num(scr_umol)) ekfc_gfr(scr_umol, q_cr_child(sex, age), -0.322, -1.132) else NA
+      gfr_cys <- if(is_valid_num(scys)) ekfc_gfr(scys, 0.83, -0.322, -1.132) else NA
+      if(!is.na(gfr_cr)) rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin)", Value = round(gfr_cr, 0)))
+      if(!is.na(gfr_cys)) rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)", Value = round(gfr_cys, 0)))
+      if(!is.na(gfr_cr) && !is.na(gfr_cys)) rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)", Value = round((gfr_cr + gfr_cys) / 2, 0)))
     }
-    
     if ("LMR18_child" %in% formulas && is_valid_num(scr_umol) && age >= 2 && age < 18) {
       rows <- rbind(rows, data.frame(Resultat = "LMR18", Value = round(lmr18_gfr_child_cr(scr_umol, sex, age), 0)))
     }
-    
     if ("CAPA_child" %in% formulas && is_valid_num(scys) && age >= 1) {
       rows <- rbind(rows, data.frame(Resultat = "CAPA", Value = round(capa_gfr_cys(scys, age), 0)))
     }
-    
     if ("Zappitelli" %in% formulas && age >= 8 && age <= 17) {
-      # Cystatin C only
       if (is_valid_num(scys)) {
         gfr_cys_base <- zappitelli_gfr_cys(scys)
         rows <- rbind(rows, data.frame(Resultat = "Zappitelli (cystatin C)", Value = round(gfr_cys_base, 0)))
         rows <- rbind(rows, data.frame(Resultat = "Zappitelli (cystatin C)¹", Value = round(gfr_cys_base * 1.2, 0)))
       }
-      # Combined
       if (is_valid_num(scys) && is_valid_num(scr_umol) && is_valid_num(height)) {
         gfr_comb_base <- zappitelli_gfr_cys_cr(scr_umol, scys, height)
         rows <- rbind(rows, data.frame(Resultat = "Zappitelli (kreatinin & cystatin C)", Value = round(gfr_comb_base, 0)))
         rows <- rbind(rows, data.frame(Resultat = "Zappitelli (kreatinin & cystatin C)¹", Value = round(gfr_comb_base * 1.165, 0)))
-        
         gfr_comb_sb <- gfr_comb_base * (scr_umol^0.925 / 40.45)
         rows <- rbind(rows, data.frame(Resultat = "Zappitelli (kreatinin & cystatin C)²", Value = round(gfr_comb_sb, 0)))
       }
     }
-    
     return(rows)
   }
   
   egfr_results_child <- reactive({
     req(input$age_child, input$age_child <= 18, input$sex_child, input$formulas_child)
-    if (!is_valid_num(input$age_child) || !input$sex_child %in% c("Man", "Kvinna")) {
-      return(data.frame(Resultat = character(), Value = character(), stringsAsFactors = FALSE))
-    }
     calc_egfr_child(input$creatinine_child, input$cysc_child, input$sex_child, input$age_child, input$height_child, input$formulas_child)
   })
   
   output$resultsTable_child <- DT::renderDataTable({
     result <- egfr_results_child()
     if (nrow(result) == 0) return(NULL)
-    datatable(
-      result,
-      options = list(
-        paging = FALSE, searching = FALSE, ordering = FALSE, info = FALSE,
-        columnDefs = list(list(className = 'dt-center', targets = '_all')),
-        language = list(emptyTable = "Inga resultat att visa")
-      ),
-      rownames = FALSE,
-      selection = 'multiple'
-    )
+    datatable(result, options = list(paging = FALSE, searching = FALSE, ordering = FALSE, info = FALSE, columnDefs = list(list(className = 'dt-center', targets = '_all'))), rownames = FALSE)
   })
   
   output$selectedMean_child <- renderUI({
-    req(input$resultsTable_child_rows_selected)
     selected <- input$resultsTable_child_rows_selected
-    results <- egfr_results_child()
-    if (length(selected) > 0 && nrow(results) > 0) {
+    if (length(selected) > 0) {
+      results <- egfr_results_child()
       mean_val <- mean(as.numeric(results$Value[selected]), na.rm = TRUE)
-      if (is_valid_num(mean_val)) {
-        tags$div(style = "margin-top: 10px;", paste("Medelvärde av valda rader:", round(mean_val, 0), "mL/min/1.73m²"))
-      }
+      tags$div(style = "margin-top: 10px;", paste("Medelvärde av valda rader:", round(mean_val, 0), "mL/min/1.73m²"))
     }
   })
   
   output$footnote_child <- renderUI({
     results <- egfr_results_child()
     if (nrow(results) > 0 && any(grepl("Zappitelli", results$Resultat))) {
-      tags$div(
-        style = "font-size: 0.8em; color: #666; margin-top: 10px;",
-        HTML("¹ Njurtransplanterad<br>² Ryggmärgsbråck")
-      )
+      tags$div(style = "font-size: 0.8em; color: #666; margin-top: 10px;", HTML("¹ Njurtransplanterad<br>² Ryggmärgsbråck"))
     }
   })
   
-  observeEvent(input$clear_child, {
-    updateNumericInput(session, "age_child", value = NA)
-    updateSelectInput(session, "sex_child", selected = "Man")
-    updateNumericInput(session, "height_child", value = NA)
-    updateNumericInput(session, "creatinine_child", value = NA)
-    updateNumericInput(session, "cysc_child", value = NA)
-    updateCheckboxGroupInput(session, "formulas_child", selected = "Schwartz")
-    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_child"), selected = NULL)
-  })
-  
-  observeEvent(input$clear_selection_child, {
-    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_child"), selected = NULL)
-  })
-  
   # --- Iohexol Calculation Section ---
-  
-  # Format decimal hours to hours and minutes
-  format_hours_minutes <- function(decimal_hours) {
-    if (!is_valid_num(decimal_hours)) return("NA")
-    hours <- floor(decimal_hours)
-    minutes <- round((decimal_hours - hours) * 60)
-    sprintf("%d h %d min", hours, minutes)
-  }
   
   observe({
     req(input$io_age, input$io_sex, input$io_weight, input$io_height, input$io_conc_inj,
         input$io_vol_inj, input$io_inj_time, input$io_bsa_formula, input$num_points)
     
     num_points <- as.numeric(input$num_points)
-    
     sex <- input$io_sex
     weight <- as.numeric(input$io_weight)
     height <- as.numeric(input$io_height)
@@ -463,13 +332,13 @@ server <- function(input, output, session) {
       result <- iohexol_one_point_gfr(sex, weight, height, dose_mg, plasma_mg_L, t_diff_min, bsa_formula)
       
       output$io_result_ui <- renderUI({
-        if (is.na(result$gfr) || is.na(result$gfr_adj) || is.na(result$t_opt_hours)) {
+        if (any(is.na(result))) {
           tags$div(style = "color: red;", "Ogiltiga indata eller beräkning misslyckades.")
         } else {
           tags$div(
             style = "background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
-            tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Absolut mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result$gfr), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min"))),
-            tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Relativt mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result$gfr_adj), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min/1.73m²"))),
+            tags$div(style = "font-size: 1.8em; font-weight: bold;", "Absolut mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result$gfr), " mL/min")),
+            tags$div(style = "font-size: 1.8em; font-weight: bold;", "Relativt mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result$gfr_adj), " mL/min/1.73m²")),
             tags$div(style = "font-size: 1.2em; color: #888; margin-top: 10px;", sprintf("Optimal provtagningstid: %s", format_hours_minutes(result$t_opt_hours)))
           )
         }
@@ -477,24 +346,22 @@ server <- function(input, output, session) {
       
       output$io_plot <- renderPlot({
         if (is.na(result$gfr)) return(NULL)
-        eecv <- jacobsson_eecv(sex, weight)
+        eecv_ml <- jacobsson_eecv(sex, weight)
         
-        df_sample <- data.frame(time = t_diff_min / 60, conc = plasma_mg_L, point_num = "1")
-        df_c0 <- data.frame(time = 0, conc = dose_mg / (eecv / 1000))
-        df_line <- rbind(df_c0, df_sample[, c("time", "conc")])
+        df_sample <- data.frame(time = t_diff_min / 60, conc = plasma_mg_L)
+        df_c0 <- data.frame(time = 0, conc = dose_mg / (eecv_ml / 1000))
+        df_line <- rbind(df_c0, df_sample)
         
-        fit <- lm(log10(conc) ~ time, data = df_line)
+        fit <- lm(log(conc) ~ time, data = df_line)
         slope <- coef(fit)[2]
         intercept <- coef(fit)[1]
         
-        t_end <- max(df_sample$time, result$t_opt_hours) + 0.5
-        log_conc_end <- intercept + slope * t_end
-        conc_end <- 10^log_conc_end
+        t_end <- max(df_sample$time, result$t_opt_hours, na.rm = TRUE) + 0.5
+        conc_end <- exp(intercept + slope * t_end)
         df_dashed <- data.frame(time = c(df_sample$time, t_end), conc = c(df_sample$conc, conc_end))
         
         t_opt <- result$t_opt_hours
-        log_conc_opt <- intercept + slope * t_opt
-        conc_opt <- 10^log_conc_opt
+        conc_opt <- exp(intercept + slope * t_opt)
         df_opt <- data.frame(time = t_opt, conc = conc_opt, label = sprintf("Optimal provtagningstid:\n%s", format_hours_minutes(result$t_opt_hours)))
         
         ggplot() +
@@ -502,7 +369,6 @@ server <- function(input, output, session) {
           geom_line(data = df_dashed, aes(time, conc), linetype = "dashed", color = "black") +
           geom_point(data = df_c0, aes(time, conc), size = 5, color = "black") +
           geom_point(data = df_sample, aes(time, conc), size = 5, color = "#0d6efd") +
-          geom_text(data = df_sample, aes(time, conc, label = point_num), color = "white", fontface = "bold", size = 4) +
           geom_point(data = df_opt, aes(time, conc), shape = 4, size = 4, color = "#0d6efd") +
           ggrepel::geom_label_repel(
             data = df_opt, aes(time, conc, label = label), direction = "y", nudge_y = 0.05,
@@ -510,224 +376,134 @@ server <- function(input, output, session) {
             color = "#0d6efd", size = 5, label.r = unit(0.25, "lines")
           ) +
           scale_y_log10(labels = scales::number_format()) +
-          scale_x_continuous(limits = c(0, max(df_sample$time, result$t_opt_hours) + 0.5)) +
+          scale_x_continuous(limits = c(0, max(df_sample$time, result$t_opt_hours, na.rm = TRUE) + 0.5)) +
           labs(x = "Tid (timmar)", y = "Koncentration (mg/L)") +
-          theme_minimal(base_size = 14) +
-          theme(axis.title = element_text(face = "bold"), plot.title = element_text(hjust = 0.5, face = "bold"))
+          theme_minimal(base_size = 14)
       })
       
-    } else if (num_points == 2 || num_points == 4) {
+    } else if (num_points %in% c(2, 4)) {
       
       format_sub_result_multiline <- function(label, result) {
         abs_gfr <- if (is_valid_num(result$gfr)) sprintf("%.1f", result$gfr) else "N/A"
         rel_gfr <- if (is_valid_num(result$gfr_adj)) sprintf("%.1f", result$gfr_adj) else "N/A"
-        
         tags$div(
           tags$b(label),
           tags$div(
             style = "display: grid; grid-template-columns: 50px auto; align-items: center; margin-left: 10px; line-height: 1.2;",
-            tags$span(style = "text-align: right; padding-right: 5px;", abs_gfr),
-            tags$span("mL/min"),
-            tags$span(style = "text-align: right; padding-right: 5px;", rel_gfr),
-            tags$span("mL/min/1.73m²")
+            tags$span(style = "text-align: right; padding-right: 5px;", abs_gfr), tags$span("mL/min"),
+            tags$span(style = "text-align: right; padding-right: 5px;", rel_gfr), tags$span("mL/min/1.73m²")
           )
         )
       }
       
-      if (num_points == 2) {
-        req(input$io_sample_time1, input$io_conc_p1, input$io_sample_time2, input$io_conc_p2)
-        
-        times_str <- c(input$io_sample_time1, input$io_sample_time2)
-        concs_num <- c(as.numeric(input$io_conc_p1), as.numeric(input$io_conc_p2))
-        
-        req(all(sapply(times_str, validate_time)), all(is_valid_num(concs_num, min = 0, inclusive = FALSE)))
-        
-        times_min <- sapply(times_str, function(t) calc_time_difference_min(input$io_inj_time, t))
-        
-        if (any(is.na(times_min)) || any(times_min < 120)) {
-          show_error("Ogiltig tidsdifferens, provtagning före 2 timmar.")
-          return()
-        }
-        
-        bsa <- bsa_select(weight, height, sex, bsa_formula)
-        result_2pt <- slope_intercept_gfr(times_min, concs_num, dose_mg, bsa)
-        
-        results_1pt <- lapply(1:2, function(i) {
-          iohexol_one_point_gfr(sex, weight, height, dose_mg, concs_num[i], times_min[i], bsa_formula)
-        })
-        
-        output$io_result_ui <- renderUI({
-          if (is.na(result_2pt$gfr) || is.na(result_2pt$gfr_adj)) {
-            tags$div(style = "color: red;", "Ogiltiga indata eller beräkning misslyckades.")
-          } else {
-            tagList(
-              tags$div(
-                style = "background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
-                tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Absolut mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result_2pt$gfr), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min"))),
-                tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Relativt mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result_2pt$gfr_adj), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min/1.73m²"))),
-                
-                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
-                
-                tags$button("Visa enpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_sub_2pt"),
-                
-                div(class="collapse", id="collapse_sub_2pt", style="margin-top: 15px;",
-                    fluidRow(
-                      column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
-                      column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]]))
-                    )
-                )
-              )
-            )
-          }
-        })
-        
-        output$io_plot <- renderPlot({
-          if (is.na(result_2pt$gfr)) return(NULL)
-          df_obs <- data.frame(time_h = times_min / 60, conc = concs_num, point_num = 1:2)
-          fit <- lm(log10(conc) ~ time_h, data = df_obs)
-          t_end_h <- max(df_obs$time_h) + 0.5
-          pred_times_h <- seq(0, t_end_h, length.out = 200)
-          pred_log10 <- predict(fit, newdata = data.frame(time_h = pred_times_h))
-          df_pred <- data.frame(time_h = pred_times_h, conc = 10^pred_log10)
-          
-          ggplot() +
-            geom_line(data = df_pred, aes(x = time_h, y = conc), color = "black") +
-            geom_point(data = df_obs, aes(x = time_h, y = conc), size = 5, color = "#0d6efd") +
-            geom_text(data = df_obs, aes(x = time_h, y = conc, label = point_num), color = "white", fontface = "bold", size = 4) +
-            scale_y_log10(labels = scales::number_format()) +
-            labs(x = "Tid (timmar)", y = "Koncentration (mg/L)") +
-            theme_minimal(base_size = 14) +
-            theme(axis.title = element_text(face = "bold"), plot.title = element_text(hjust = 0.5, face = "bold"))
-        })
-        
-      } else if (num_points == 4) {
-        req(input$io_sample_time1, input$io_conc_p1, input$io_sample_time2, input$io_conc_p2,
-            input$io_sample_time3, input$io_conc_p3, input$io_sample_time4, input$io_conc_p4)
-        
-        times_str <- c(input$io_sample_time1, input$io_sample_time2, input$io_sample_time3, input$io_sample_time4)
-        concs_num <- c(as.numeric(input$io_conc_p1), as.numeric(input$io_conc_p2), as.numeric(input$io_conc_p3), as.numeric(input$io_conc_p4))
-        
-        req(all(sapply(times_str, validate_time)), all(is_valid_num(concs_num, min = 0, inclusive = FALSE)))
-        
-        times_min <- sapply(times_str, function(t) calc_time_difference_min(input$io_inj_time, t))
-        
-        if (any(is.na(times_min)) || any(times_min < 120)) {
-          show_error("Ogiltig tidsdifferens, provtagning före 2 timmar.")
-          return()
-        }
-        
-        bsa <- bsa_select(weight, height, sex, bsa_formula)
-        
-        result_4pt <- slope_intercept_gfr(times_min, concs_num, dose_mg, bsa)
-        
-        results_1pt <- lapply(1:4, function(i) {
-          iohexol_one_point_gfr(sex, weight, height, dose_mg, concs_num[i], times_min[i], bsa_formula)
-        })
-        
-        point_pairs <- list(c(1,2), c(1,3), c(1,4), c(2,3), c(2,4), c(3,4))
-        results_2pt <- lapply(point_pairs, function(pair) {
-          slope_intercept_gfr(times_min[pair], concs_num[pair], dose_mg, bsa)
-        })
-        
-        output$io_result_ui <- renderUI({
-          if (is.na(result_4pt$gfr) || is.na(result_4pt$gfr_adj)) {
-            tags$div(style = "color: red;", "Ogiltiga indata eller beräkning misslyckades.")
-          } else {
-            tagList(
-              tags$div(
-                style = "background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
-                tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Absolut mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result_4pt$gfr), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min"))),
-                tags$div(style = "font-size: 1.8em; font-weight: bold; margin-bottom: 8px;", "Relativt mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", result_4pt$gfr_adj), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min/1.73m²"))),
-                
-                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
-                
-                div(style="display: flex; gap: 10px; margin-bottom: 15px;",
-                    tags$button("Visa tvåpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_2pt_calcs"),
-                    tags$button("Visa enpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_1pt_calcs")
-                ),
-                
-                div(class="collapse", id="collapse_2pt_calcs",
-                    h5("Tvåpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
-                    fluidRow(
-                      column(6, format_sub_result_multiline("Prov 1 och 2:", results_2pt[[1]])),
-                      column(6, format_sub_result_multiline("Prov 2 och 3:", results_2pt[[4]]))
-                    ),
-                    fluidRow(
-                      column(6, format_sub_result_multiline("Prov 1 och 3:", results_2pt[[2]])),
-                      column(6, format_sub_result_multiline("Prov 2 och 4:", results_2pt[[5]]))
-                    ),
-                    fluidRow(
-                      column(6, format_sub_result_multiline("Prov 1 och 4:", results_2pt[[3]])),
-                      column(6, format_sub_result_multiline("Prov 3 och 4:", results_2pt[[6]]))
-                    ),
-                    hr(style = "margin-top: 20px; margin-bottom: 20px;")
-                ),
-                
-                div(class="collapse", id="collapse_1pt_calcs",
-                    h5("Enpunktsberäkningar", style="font-weight: bold; color: #333; margin-bottom: 10px;"),
-                    fluidRow(
-                      column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
-                      column(6, format_sub_result_multiline("Prov 3:", results_1pt[[3]]))
-                    ),
-                    fluidRow(
-                      column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]])),
-                      column(6, format_sub_result_multiline("Prov 4:", results_1pt[[4]]))
-                    )
-                )
-              )
-            )
-          }
-        })
-        
-        output$io_plot <- renderPlot({
-          if (is.na(result_4pt$gfr)) return(NULL)
-          df_obs <- data.frame(time_h = times_min / 60, conc = concs_num, point_num = 1:4)
-          fit <- lm(log10(conc) ~ time_h, data = df_obs)
-          t_end_h <- max(df_obs$time_h) + 0.5
-          pred_times_h <- seq(0, t_end_h, length.out = 200)
-          pred_log10 <- predict(fit, newdata = data.frame(time_h = pred_times_h))
-          df_pred <- data.frame(time_h = pred_times_h, conc = 10^pred_log10)
-          
-          ggplot() +
-            geom_line(data = df_pred, aes(x = time_h, y = conc), color = "black") +
-            geom_point(data = df_obs, aes(x = time_h, y = conc), size = 5, color = "#0d6efd") +
-            geom_text(data = df_obs, aes(x = time_h, y = conc, label = point_num), color = "white", fontface = "bold", size = 4) +
-            scale_y_log10(labels = scales::number_format()) +
-            labs(x = "Tid (timmar)", y = "Koncentration (mg/L)") +
-            theme_minimal(base_size = 14) +
-            theme(axis.title = element_text(face = "bold"), plot.title = element_text(hjust = 0.5, face = "bold"))
-        })
+      times_str <- sapply(1:num_points, function(i) input[[paste0("io_sample_time", i)]])
+      concs_num <- sapply(1:num_points, function(i) as.numeric(input[[paste0("io_conc_p", i)]]))
+      
+      req(all(sapply(times_str, is_valid_hhmm)), all(is_valid_num(concs_num, min = 0, inclusive = FALSE)))
+      
+      times_min <- sapply(times_str, function(t) calc_time_difference_min(input$io_inj_time, t))
+      
+      if (any(is.na(times_min)) || any(times_min < 120)) {
+        show_error("Ogiltig tidsdifferens, provtagning före 2 timmar.")
+        return()
       }
+      
+      bsa <- bsa_select(weight, height, sex, bsa_formula)
+      main_result <- slope_intercept_gfr(times_min, concs_num, dose_mg, bsa)
+      
+      results_1pt <- lapply(1:num_points, function(i) {
+        iohexol_one_point_gfr(sex, weight, height, dose_mg, concs_num[i], times_min[i], bsa_formula)
+      })
+      
+      output$io_result_ui <- renderUI({
+        if (any(is.na(main_result))) {
+          tags$div(style = "color: red;", "Ogiltiga indata eller beräkning misslyckades.")
+        } else {
+          sub_calcs_ui <- if (num_points == 2) {
+            tagList(
+              tags$button("Visa enpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_sub_2pt"),
+              div(class="collapse", id="collapse_sub_2pt", style="margin-top: 15px;",
+                  fluidRow(
+                    column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
+                    column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]]))
+                  )
+              )
+            )
+          } else { # 4-point
+            point_pairs <- list(c(1,2), c(1,3), c(1,4), c(2,3), c(2,4), c(3,4))
+            results_2pt <- lapply(point_pairs, function(pair) {
+              slope_intercept_gfr(times_min[pair], concs_num[pair], dose_mg, bsa)
+            })
+            tagList(
+              div(style="display: flex; gap: 10px; margin-bottom: 15px;",
+                  tags$button("Visa tvåpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_2pt_calcs"),
+                  tags$button("Visa enpunktsberäkningar", class="btn btn-outline-primary btn-sm", type="button", `data-bs-toggle`="collapse", `data-bs-target`="#collapse_1pt_calcs")
+              ),
+              div(class="collapse", id="collapse_2pt_calcs",
+                  h5("Tvåpunktsberäkningar", style="font-weight: bold; margin-bottom: 10px;"),
+                  fluidRow(
+                    column(6, format_sub_result_multiline("Prov 1 & 2:", results_2pt[[1]])),
+                    column(6, format_sub_result_multiline("Prov 2 & 3:", results_2pt[[4]]))
+                  ),
+                  fluidRow(
+                    column(6, format_sub_result_multiline("Prov 1 & 3:", results_2pt[[2]])),
+                    column(6, format_sub_result_multiline("Prov 2 & 4:", results_2pt[[5]]))
+                  ),
+                  fluidRow(
+                    column(6, format_sub_result_multiline("Prov 1 & 4:", results_2pt[[3]])),
+                    column(6, format_sub_result_multiline("Prov 3 & 4:", results_2pt[[6]]))
+                  ),
+                  hr(style = "margin-top: 20px; margin-bottom: 20px;")
+              ),
+              div(class="collapse", id="collapse_1pt_calcs",
+                  h5("Enpunktsberäkningar", style="font-weight: bold; margin-bottom: 10px;"),
+                  fluidRow(
+                    column(6, format_sub_result_multiline("Prov 1:", results_1pt[[1]])),
+                    column(6, format_sub_result_multiline("Prov 3:", results_1pt[[3]]))
+                  ),
+                  fluidRow(
+                    column(6, format_sub_result_multiline("Prov 2:", results_1pt[[2]])),
+                    column(6, format_sub_result_multiline("Prov 4:", results_1pt[[4]]))
+                  )
+              )
+            )
+          }
+          
+          tagList(
+            tags$div(
+              style = "background: #f8f9fa; border-radius: 12px; padding: 24px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
+              tags$div(style = "font-size: 1.8em; font-weight: bold;", "Absolut mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", main_result$gfr), " mL/min")),
+              tags$div(style = "font-size: 1.8em; font-weight: bold;", "Relativt mGFR: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", main_result$gfr_adj), " mL/min/1.73m²")),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+              sub_calcs_ui
+            )
+          )
+        }
+      })
+      
+      output$io_plot <- renderPlot({
+        if (any(is.na(main_result))) return(NULL)
+        df_obs <- data.frame(time_h = times_min / 60, conc = concs_num, point_num = 1:num_points)
+        fit <- lm(log(conc) ~ time_h, data = df_obs)
+        
+        t_end_h <- max(df_obs$time_h) + 0.5
+        pred_times_h <- seq(0, t_end_h, length.out = 200)
+        pred_log <- predict(fit, newdata = data.frame(time_h = pred_times_h))
+        df_pred <- data.frame(time_h = pred_times_h, conc = exp(pred_log))
+        
+        ggplot() +
+          geom_line(data = df_pred, aes(x = time_h, y = conc), color = "black") +
+          geom_point(data = df_obs, aes(x = time_h, y = conc), size = 5, color = "#0d6efd") +
+          geom_text(data = df_obs, aes(x = time_h, y = conc, label = point_num), color = "white", fontface = "bold", size = 4) +
+          scale_y_log10(labels = scales::number_format()) +
+          labs(x = "Tid (timmar)", y = "Koncentration (mg/L)") +
+          theme_minimal(base_size = 14)
+      })
     }
-  })
-  
-  # --- Controls / clear buttons ---
-  
-  # Iohexol tab clear
-  observeEvent(input$io_clear, {
-    updateNumericInput(session, "io_age", value = NA)
-    updateSelectInput(session, "io_sex", selected = "Man")
-    updateNumericInput(session, "io_weight", value = NA)
-    updateNumericInput(session, "io_height", value = NA)
-    updateSelectInput(session, "io_conc_inj", selected = "300")
-    updateNumericInput(session, "io_vol_inj", value = 4)
-    updateTextInput(session, "io_inj_time", value = "")
-    updateSelectInput(session, "io_bsa_formula", selected = "dubois")
-    
-    # Clear all possible sample inputs
-    for (i in 1:4) {
-      updateTextInput(session, paste0("io_sample_time", i), value = "")
-      updateNumericInput(session, paste0("io_conc_p", i), value = NA)
-    }
-    
-    # Clear outputs
-    output$io_result_ui <- renderUI({ NULL })
-    output$io_plot <- renderPlot({ NULL })
   })
   
   # --- Other Calculations Section ---
   
-  # Cockcroft-Gault
   cg_result <- reactive({
     req(input$cg_age, input$cg_weight, input$cg_creatinine, input$cg_sex)
     calc_cockcroft_gault(input$cg_age, input$cg_weight, input$cg_creatinine, input$cg_sex)
@@ -743,28 +519,19 @@ server <- function(input, output, session) {
     }
   })
   
-  observeEvent(input$clear_cg, {
-    updateNumericInput(session, "cg_age", value = NA)
-    updateSelectInput(session, "cg_sex", selected = "Man")
-    updateNumericInput(session, "cg_weight", value = NA)
-    updateNumericInput(session, "cg_creatinine", value = NA)
-  })
-  
-  # GFR Conversion
   gfr_conv_result <- reactive({
     req(input$gfr_conv_direction, input$gfr_conv_height, input$gfr_conv_weight, input$gfr_conv_sex, input$gfr_conv_bsa_formula)
-    
     bsa <- bsa_select(input$gfr_conv_weight, input$gfr_conv_height, input$gfr_conv_sex, input$gfr_conv_bsa_formula)
     if (!is_valid_num(bsa)) return(list(value = NA, label = NA, unit = NA))
     
     if (input$gfr_conv_direction == "abs_to_rel") {
       req(input$gfr_abs)
       val <- input$gfr_abs * (1.73 / bsa)
-      return(list(value = val, label = "Relativ GFR", unit = "mL/min/1.73m²"))
+      list(value = val, label = "Relativ GFR", unit = "mL/min/1.73m²")
     } else {
       req(input$gfr_rel)
       val <- input$gfr_rel * bsa / 1.73
-      return(list(value = val, label = "Absolut GFR", unit = "mL/min"))
+      list(value = val, label = "Absolut GFR", unit = "mL/min")
     }
   })
   
@@ -776,6 +543,59 @@ server <- function(input, output, session) {
         tags$div(style = "font-size: 1.5em; font-weight: bold;", paste0(res$label, ": "), tags$span(style="color: #0d6efd;", sprintf("%.1f", res$value), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", res$unit)))
       )
     }
+  })
+  
+  # --- Controls / clear buttons ---
+  
+  observeEvent(input$io_clear, {
+    updateNumericInput(session, "io_age", value = NA)
+    updateSelectInput(session, "io_sex", selected = "Man")
+    updateNumericInput(session, "io_weight", value = NA)
+    updateNumericInput(session, "io_height", value = NA)
+    updateSelectInput(session, "io_conc_inj", selected = "300")
+    updateNumericInput(session, "io_vol_inj", value = 4)
+    updateTextInput(session, "io_inj_time", value = "")
+    updateSelectInput(session, "io_bsa_formula", selected = "dubois")
+    for (i in 1:4) {
+      updateTextInput(session, paste0("io_sample_time", i), value = "")
+      updateNumericInput(session, paste0("io_conc_p", i), value = NA)
+    }
+    output$io_result_ui <- renderUI({ NULL })
+    output$io_plot <- renderPlot({ NULL })
+  })
+  
+  observeEvent(input$clear_adult, {
+    updateNumericInput(session, "age", value = NA)
+    updateSelectInput(session, "sex", selected = "Man")
+    updateNumericInput(session, "creatinine", value = NA)
+    updateNumericInput(session, "cysc", value = NA)
+    updateCheckboxGroupInput(session, "formulas_adult", selected = c("EKFC"))
+    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_adult"), selected = NULL)
+  })
+  
+  observeEvent(input$clear_selection_adult, {
+    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_adult"), selected = NULL)
+  })
+  
+  observeEvent(input$clear_child, {
+    updateNumericInput(session, "age_child", value = NA)
+    updateSelectInput(session, "sex_child", selected = "Man")
+    updateNumericInput(session, "height_child", value = NA)
+    updateNumericInput(session, "creatinine_child", value = NA)
+    updateNumericInput(session, "cysc_child", value = NA)
+    updateCheckboxGroupInput(session, "formulas_child", selected = "Schwartz")
+    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_child"), selected = NULL)
+  })
+  
+  observeEvent(input$clear_selection_child, {
+    DT::selectRows(proxy = DT::dataTableProxy("resultsTable_child"), selected = NULL)
+  })
+  
+  observeEvent(input$clear_cg, {
+    updateNumericInput(session, "cg_age", value = NA)
+    updateSelectInput(session, "cg_sex", selected = "Man")
+    updateNumericInput(session, "cg_weight", value = NA)
+    updateNumericInput(session, "cg_creatinine", value = NA)
   })
   
   observeEvent(input$clear_gfr_conv, {

@@ -14,7 +14,7 @@ BSA_FORMULAS <- list(
   "Schlich" = "schlich"
 )
 
-EGFR_FORMULAS <- list(
+EGFR_ADULT_FORMULAS <- list(
   "EKFC" = "EKFC",
   "FAS" = "FAS",
   "r-LMR" = "r-LMR",
@@ -22,8 +22,18 @@ EGFR_FORMULAS <- list(
   "LMR18" = "LMR18",
   "CAPA" = "CAPA",
   "MDRD" = "MDRD",
-  "BIS (endast ≥70 år)" = "BIS"
+  "BIS (≥70 år)" = "BIS"
 )
+
+EGFR_CHILD_FORMULAS <- list(
+  "Schwartz (0 - 18 år)" = "Schwartz",
+  "CKiD U25 (≥1 år)" = "CKiD_U25",
+  "EKFC (≥2 år)" = "EKFC_child",
+  "LMR18 (2-17 år)" = "LMR18_child",
+  "CAPA (≥1 år)" = "CAPA_child",
+  "Zappitelli (8-17 år)" = "Zappitelli"
+)
+
 
 # Omnipaque iodine concentrations
 OMNIPAQUE_IODINE <- list(
@@ -166,6 +176,7 @@ iohexol_tab_ui <- function() {
           )
       ),
       div(class = "input-section",
+          h5("Kontroller", style = "color: #333;"),
           tags$div(class = "mb-3",
                    actionButton("io_clear", "Rensa alla fält", class = "action-button btn w-100")
           )
@@ -192,7 +203,7 @@ egfr_adult_tab_ui <- function() {
       div(class = "input-section",
           h5("Demografi", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 18, max = 120, step = 1),
+                   tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
                    tags$label("Ålder (år)", `for` = "age")
           ),
           tags$div(class = "form-floating mb-3",
@@ -212,36 +223,27 @@ egfr_adult_tab_ui <- function() {
       ),
       div(class = "input-section",
           h5("Formler", style = "color: #333;"),
-          # --- REPLACED checkboxGroupInput with custom UI ---
-          div(id="formulas", class="shiny-input-checkboxgroup shiny-input-container",
-              lapply(names(EGFR_FORMULAS), function(label) {
-                value <- EGFR_FORMULAS[[label]]
-                
-                # Create the checkbox tag
+          div(id="formulas_adult", class="shiny-input-checkboxgroup shiny-input-container",
+              lapply(names(EGFR_ADULT_FORMULAS), function(label) {
+                value <- EGFR_ADULT_FORMULAS[[label]]
                 checkbox_tag <- tags$div(class="checkbox",
                                          tags$label(
-                                           tags$input(type="checkbox", name="formulas", value=value),
+                                           tags$input(type="checkbox", name="formulas_adult", value=value),
                                            tags$span(label)
-                                         )
-                )
-                
-                # Set the ID for the BIS checkbox specifically
+                                         ))
                 if (value == "BIS") {
                   checkbox_tag$children[[1]]$children[[1]]$attribs$id <- "formula_bis"
                 }
-                
-                # Set the default checked state
                 if (value == "EKFC") {
                   checkbox_tag$children[[1]]$children[[1]]$attribs$checked <- "checked"
                 }
-                
                 return(checkbox_tag)
               })
           )
       ),
       div(class = "input-section",
           class = "mb-3",
-          actionButton("clear", "Rensa alla fält", class = "action-button btn w-100")
+          actionButton("clear_adult", "Rensa alla fält", class = "action-button btn w-100")
       )
     ),
     mainPanel(
@@ -250,13 +252,72 @@ egfr_adult_tab_ui <- function() {
           h4("eGFR (vuxna)", style = "color: white; margin: 0;")
       ),
       div(class = "results-section",
-          DT::dataTableOutput("resultsTable"),
-          uiOutput("selectedMean"),
-          uiOutput("asteriskNote"),
-          conditionalPanel(
-            condition = "input.resultsTable_rows_selected && input.resultsTable_rows_selected.length > 0",
-            actionButton("clear_selection", "Rensa val", class = "action-button-mini")
+          uiOutput("adult_results_ui")
+      )
+    )
+  )
+}
+
+# eGFR (Children) tab UI
+egfr_child_tab_ui <- function() {
+  sidebarLayout(
+    sidebarPanel(
+      width = 4,
+      div(class = "input-section",
+          h5("Demografi", style = "color: #333;"),
+          tags$div(class = "form-floating mb-3",
+                   tags$input(id = "age_child", type = "number", class = "form-control", placeholder = " ", min = 0, max = 25, step = 1),
+                   tags$label("Ålder (år)", `for` = "age_child")
+          ),
+          tags$div(class = "form-floating mb-3",
+                   tags$select(id = "sex_child", class = "form-select",
+                               tags$option("Pojke", value = "Man"),
+                               tags$option("Flicka", value = "Kvinna")),
+                   tags$label("Kön", `for` = "sex_child")
+          ),
+          tags$div(class = "form-floating mb-3",
+                   tags$input(id = "height_child", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
+                   tags$label("Längd (cm)", `for` = "height_child")
+          ),
+          tags$div(class = "form-floating mb-3",
+                   tags$input(id = "creatinine_child", type = "number", class = "form-control", placeholder = " ", min = 1, max = 5000, step = 1),
+                   tags$label("Kreatinin (µmol/L)", `for` = "creatinine_child")
+          ),
+          tags$div(class = "form-floating mb-3",
+                   tags$input(id = "cysc_child", type = "number", class = "form-control", placeholder = " ", min = 0.2, max = 10, step = 0.01),
+                   tags$label("Cystatin C (mg/L)", `for` = "cysc_child")
           )
+      ),
+      div(class = "input-section",
+          h5("Formler", style = "color: #333;"),
+          div(id="formulas_child", class="shiny-input-checkboxgroup shiny-input-container",
+              lapply(names(EGFR_CHILD_FORMULAS), function(label) {
+                value <- EGFR_CHILD_FORMULAS[[label]]
+                checkbox_tag <- tags$div(class="checkbox",
+                                         tags$label(
+                                           tags$input(type="checkbox", name="formulas_child", value=value),
+                                           tags$span(label)
+                                         ))
+                checkbox_tag$children[[1]]$children[[1]]$attribs$id <- paste0("formula_child_", value)
+                if (value == "Schwartz") {
+                  checkbox_tag$children[[1]]$children[[1]]$attribs$checked <- "checked"
+                }
+                return(checkbox_tag)
+              })
+          )
+      ),
+      div(class = "input-section",
+          class = "mb-3",
+          actionButton("clear_child", "Rensa alla fält", class = "action-button btn w-100")
+      )
+    ),
+    mainPanel(
+      width = 8,
+      div(class = "panel-header",
+          h4("eGFR (barn)", style = "color: white; margin: 0;")
+      ),
+      div(class = "results-section",
+          uiOutput("child_results_ui")
       )
     )
   )
@@ -284,7 +345,8 @@ ui <- fluidPage(
       navbarPage(
         "GFR-appen",
         tabPanel("Iohexolberäkning", iohexol_tab_ui()),
-        tabPanel("eGFR (vuxna)", egfr_adult_tab_ui())
+        tabPanel("eGFR (vuxna)", egfr_adult_tab_ui()),
+        tabPanel("eGFR (barn)", egfr_child_tab_ui())
       )
   )
 )

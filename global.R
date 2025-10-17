@@ -24,7 +24,7 @@ calc_haycock <- function(weight, height) { 0.024265 * (weight^0.5378) * (height^
 calc_boyd <- function(weight, height) { 0.0003207 * (weight^(0.7285 - 0.0188 * log10(weight))) * (height^0.3) }
 calc_gehan <- function(weight, height) { 0.0235 * (weight^0.51456) * (height^0.42246) }
 calc_fujimoto <- function(weight, height) { 0.008883 * (weight^0.444) * (height^0.663) }
-calc_schlich <- function(weight, sex) {
+calc_schlich <- function(weight, height, sex) { # Corrected signature
   if (sex == "Man") {
     return(0.000975482 * (weight^0.46) * (height^1.08))
   } else {
@@ -41,7 +41,7 @@ bsa_select <- function(weight, height, sex, formula_name) {
          "boyd" = calc_boyd(weight, height),
          "gehan" = calc_gehan(weight, height),
          "fujimoto" = calc_fujimoto(weight, height),
-         "schlich" = calc_schlich(weight, sex),
+         "schlich" = calc_schlich(weight, height, sex), # Corrected call
          NA)
 }
 
@@ -319,4 +319,21 @@ zappitelli_gfr_cys <- function(scys) {
 zappitelli_gfr_cys_cr <- function(scr_umol, scys, height_cm) {
   if (!is_valid_num(scr_umol) || !is_valid_num(scys) || !is_valid_num(height_cm)) return(NA)
   (507.76 * exp(0.003 * height_cm)) / (scys^0.635 * scr_umol^0.547)
+}
+
+# --- Other Calculations ---
+
+# Cockcroft-Gault Creatinine Clearance
+calc_cockcroft_gault <- function(age, weight, scr_umol, sex) {
+  if (!is_valid_num(age) || !is_valid_num(weight) || !is_valid_num(scr_umol)) return(NA)
+  
+  scr_mgdl <- scr_umol / 88.4
+  
+  clearance <- ((140 - age) * weight) / (72 * scr_mgdl)
+  
+  if (sex == "Kvinna") {
+    clearance <- clearance * 0.85
+  }
+  
+  return(clearance)
 }

@@ -9,6 +9,9 @@ server <- function(input, output, session) {
     updateSelectInput(session, "io_conc_inj", selected = "300")
     updateSelectInput(session, "sex", selected = "Man")
     updateSelectInput(session, "sex_child", selected = "Man")
+    updateSelectInput(session, "cg_sex", selected = "Man")
+    updateSelectInput(session, "gfr_conv_sex", selected = "Man")
+    updateSelectInput(session, "gfr_conv_bsa_formula", selected = "dubois")
     
     shinyjs::disable("formula_bis")
     
@@ -303,7 +306,7 @@ server <- function(input, output, session) {
         rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (cystatin C)", Value = round(gfr_cys, 0)))
       }
       if (is_valid_num(gfr_scr) && is_valid_num(gfr_cys)) {
-        rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (kreatinin & cystatin C)", Value = round((gfr_scr + gfr_cys) / 2, 0)))
+        rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (medel)", Value = round((gfr_scr + gfr_cys) / 2, 0)))
       }
     }
     
@@ -722,4 +725,66 @@ server <- function(input, output, session) {
     output$io_plot <- renderPlot({ NULL })
   })
   
+  # --- Other Calculations Section ---
+  
+  # Cockcroft-Gault
+  cg_result <- reactive({
+    req(input$cg_age, input$cg_weight, input$cg_creatinine, input$cg_sex)
+    calc_cockcroft_gault(input$cg_age, input$cg_weight, input$cg_creatinine, input$cg_sex)
+  })
+  
+  output$cg_result_ui <- renderUI({
+    res <- cg_result()
+    if (is_valid_num(res)) {
+      tags$div(
+        style = "background: #f8f9fa; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
+        tags$div(style = "font-size: 1.5em; font-weight: bold;", "Kreatininclearance: ", tags$span(style="color: #0d6efd;", sprintf("%.1f", res), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", "mL/min")))
+      )
+    }
+  })
+  
+  observeEvent(input$clear_cg, {
+    updateNumericInput(session, "cg_age", value = NA)
+    updateSelectInput(session, "cg_sex", selected = "Man")
+    updateNumericInput(session, "cg_weight", value = NA)
+    updateNumericInput(session, "cg_creatinine", value = NA)
+  })
+  
+  # GFR Conversion
+  gfr_conv_result <- reactive({
+    req(input$gfr_conv_direction, input$gfr_conv_height, input$gfr_conv_weight, input$gfr_conv_sex, input$gfr_conv_bsa_formula)
+    
+    bsa <- bsa_select(input$gfr_conv_weight, input$gfr_conv_height, input$gfr_conv_sex, input$gfr_conv_bsa_formula)
+    if (!is_valid_num(bsa)) return(list(value = NA, label = NA, unit = NA))
+    
+    if (input$gfr_conv_direction == "abs_to_rel") {
+      req(input$gfr_abs)
+      val <- input$gfr_abs * (1.73 / bsa)
+      return(list(value = val, label = "Relativ GFR", unit = "mL/min/1.73m²"))
+    } else {
+      req(input$gfr_rel)
+      val <- input$gfr_rel * bsa / 1.73
+      return(list(value = val, label = "Absolut GFR", unit = "mL/min"))
+    }
+  })
+  
+  output$gfr_conv_result_ui <- renderUI({
+    res <- gfr_conv_result()
+    if (is_valid_num(res$value)) {
+      tags$div(
+        style = "background: #f8f9fa; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);",
+        tags$div(style = "font-size: 1.5em; font-weight: bold;", paste0(res$label, ": "), tags$span(style="color: #0d6efd;", sprintf("%.1f", res$value), tags$span(style = "font-size: 0.6em; font-weight: normal; margin-left: 2px;", res$unit)))
+      )
+    }
+  })
+  
+  observeEvent(input$clear_gfr_conv, {
+    updateSelectInput(session, "gfr_conv_direction", selected = "abs_to_rel")
+    updateNumericInput(session, "gfr_abs", value = NA)
+    updateNumericInput(session, "gfr_rel", value = NA)
+    updateNumericInput(session, "gfr_conv_height", value = NA)
+    updateNumericInput(session, "gfr_conv_weight", value = NA)
+    updateSelectInput(session, "gfr_conv_sex", selected = "Man")
+    updateSelectInput(session, "gfr_conv_bsa_formula", selected = "dubois")
+  })
 }

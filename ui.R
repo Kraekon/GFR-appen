@@ -201,7 +201,7 @@ egfr_adult_tab_ui <- function() {
     sidebarPanel(
       width = 4,
       div(class = "input-section",
-          h5("Demografi", style = "color: #333;"),
+          h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
                    tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
                    tags$label("Ålder (år)", `for` = "age")
@@ -264,7 +264,7 @@ egfr_child_tab_ui <- function() {
     sidebarPanel(
       width = 4,
       div(class = "input-section",
-          h5("Demografi", style = "color: #333;"),
+          h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
                    tags$input(id = "age_child", type = "number", class = "form-control", placeholder = " ", min = 0, max = 25, step = 1),
                    tags$label("Ålder (år)", `for` = "age_child")
@@ -323,6 +323,98 @@ egfr_child_tab_ui <- function() {
   )
 }
 
+# "Other" tab UI
+other_tab_ui <- function() {
+  fluidPage(
+    fluidRow(
+      # --- Left Column: Cockcroft-Gault ---
+      column(6,
+             div(class = "input-section", style = "padding: 20px; margin-right: 10px;",
+                 h4("Cockcroft-Gault", style="margin-bottom: 20px;"),
+                 tags$div(class = "form-floating mb-3",
+                          tags$input(id = "cg_age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
+                          tags$label("Ålder (år)", `for` = "cg_age")
+                 ),
+                 tags$div(class = "form-floating mb-3",
+                          tags$select(id = "cg_sex", class = "form-select",
+                                      tags$option("Man", value = "Man"),
+                                      tags$option("Kvinna", value = "Kvinna")),
+                          tags$label("Kön", `for` = "cg_sex")
+                 ),
+                 tags$div(class = "form-floating mb-3",
+                          tags$input(id = "cg_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
+                          tags$label("Vikt (kg)", `for` = "cg_weight")
+                 ),
+                 tags$div(class = "form-floating mb-3",
+                          tags$input(id = "cg_creatinine", type = "number", class = "form-control", placeholder = " ", min = 1, max = 5000, step = 1),
+                          tags$label("Kreatinin (µmol/L)", `for` = "cg_creatinine")
+                 ),
+                 actionButton("clear_cg", "Rensa alla fält", class = "action-button btn w-100"),
+                 
+                 hr(style="margin-top: 30px; margin-bottom: 20px;"),
+                 
+                 uiOutput("cg_result_ui")
+             )
+      ),
+      
+      # --- Right Column: GFR Conversion ---
+      column(6,
+             div(class = "input-section", style = "padding: 20px; margin-left: 10px;",
+                 h4("GFR-konvertering", style="margin-bottom: 20px;"),
+                 
+                 tags$div(class = "form-floating mb-3",
+                          tags$select(id = "gfr_conv_direction", class = "form-select",
+                                      tags$option("Absolut till relativ", value = "abs_to_rel"),
+                                      tags$option("Relativ till absolut", value = "rel_to_abs")),
+                          tags$label("Konverteringsriktning", `for` = "gfr_conv_direction")
+                 ),
+                 
+                 conditionalPanel(
+                   condition = "input.gfr_conv_direction == 'abs_to_rel'",
+                   tags$div(class = "form-floating mb-3",
+                            tags$input(id = "gfr_abs", type = "number", class = "form-control", placeholder = " ", min = 0),
+                            tags$label("Absolut GFR (mL/min)", `for` = "gfr_abs")
+                   )
+                 ),
+                 conditionalPanel(
+                   condition = "input.gfr_conv_direction == 'rel_to_abs'",
+                   tags$div(class = "form-floating mb-3",
+                            tags$input(id = "gfr_rel", type = "number", class = "form-control", placeholder = " ", min = 0),
+                            tags$label("Relativ GFR (mL/min/1.73m²)", `for` = "gfr_rel")
+                   )
+                 ),
+                 
+                 tags$div(class = "form-floating mb-3",
+                          tags$input(id = "gfr_conv_height", type = "number", class = "form-control", placeholder = " ", min = 100, max = 230, step = 1),
+                          tags$label("Längd (cm)", `for` = "gfr_conv_height")
+                 ),
+                 tags$div(class = "form-floating mb-3",
+                          tags$input(id = "gfr_conv_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
+                          tags$label("Vikt (kg)", `for` = "gfr_conv_weight")
+                 ),
+                 tags$div(class = "form-floating mb-3",
+                          tags$select(id = "gfr_conv_sex", class = "form-select",
+                                      tags$option("Man", value = "Man"),
+                                      tags$option("Kvinna", value = "Kvinna")),
+                          tags$label("Kön", `for` = "gfr_conv_sex")
+                 ),
+                 tags$div(class = "form-floating mb-3",
+                          tags$select(id = "gfr_conv_bsa_formula", class = "form-select",
+                                      mapply(function(name, value) tags$option(name, value = value), names(BSA_FORMULAS), BSA_FORMULAS, SIMPLIFY = FALSE)),
+                          tags$label("BSA-formel", `for` = "gfr_conv_bsa_formula")
+                 ),
+                 
+                 actionButton("clear_gfr_conv", "Rensa alla fält", class = "action-button btn w-100"),
+                 
+                 hr(style="margin-top: 30px; margin-bottom: 20px;"),
+                 
+                 uiOutput("gfr_conv_result_ui")
+             )
+      )
+    )
+  )
+}
+
 # Main UI
 ui <- fluidPage(
   theme = bs_theme(version = 5),
@@ -346,7 +438,8 @@ ui <- fluidPage(
         "GFR-appen",
         tabPanel("Iohexolberäkning", iohexol_tab_ui()),
         tabPanel("eGFR (vuxna)", egfr_adult_tab_ui()),
-        tabPanel("eGFR (barn)", egfr_child_tab_ui())
+        tabPanel("eGFR (barn)", egfr_child_tab_ui()),
+        tabPanel("Övrigt", other_tab_ui())
       )
   )
 )

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-VPS_IP="YOUR_VPS_IP"
+VPS_IP="72.61.177.23"
 VPS_USER="deploy"
 
 echo "🚀 Deploying Shiny app to VPS..."

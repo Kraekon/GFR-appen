@@ -1,3 +1,4 @@
+# Updated ui.R with faint gray background for Övrigt tab cards
 library(bslib)
 library(htmltools)
 library(shiny)
@@ -33,7 +34,6 @@ EGFR_CHILD_FORMULAS <- list(
   "CAPA (≥1 år)" = "CAPA_child",
   "Zappitelli (8-17 år)" = "Zappitelli"
 )
-
 
 # Omnipaque iodine concentrations
 OMNIPAQUE_IODINE <- list(
@@ -140,70 +140,61 @@ iohexol_tab_ui <- function() {
                 )
             )
           ),
-          # --- Points 3 & 4 (side-by-side, conditional) ---
+          # --- Point 3 (side-by-side, conditional) ---
           conditionalPanel(
             condition = "input.num_points == 4",
-            tagList(
-              div(class = "row g-2 mb-3",
-                  div(class = "col",
-                      div(class = "form-floating",
-                          tags$input(id = "io_sample_time3", type = "text", class = "form-control", placeholder = "HH:MM"),
-                          tags$label("Tidpunkt 3", `for` = "io_sample_time3")
-                      )
-                  ),
-                  div(class = "col",
-                      div(class = "form-floating",
-                          tags$input(id = "io_conc_p3", type = "number", class = "form-control", placeholder = " ", min = 0, step = 1),
-                          tags$label("Konc. 3 (mg/L)", `for` = "io_conc_p3")
-                      )
-                  )
-              ),
-              div(class = "row g-2 mb-3",
-                  div(class = "col",
-                      div(class = "form-floating",
-                          tags$input(id = "io_sample_time4", type = "text", class = "form-control", placeholder = "HH:MM"),
-                          tags$label("Tidpunkt 4", `for` = "io_sample_time4")
-                      )
-                  ),
-                  div(class = "col",
-                      div(class = "form-floating",
-                          tags$input(id = "io_conc_p4", type = "number", class = "form-control", placeholder = " ", min = 0, step = 1),
-                          tags$label("Konc. 4 (mg/L)", `for` = "io_conc_p4")
-                      )
-                  )
-              )
+            div(class = "row g-2 mb-3",
+                div(class = "col",
+                    div(class = "form-floating",
+                        tags$input(id = "io_sample_time3", type = "text", class = "form-control", placeholder = "HH:MM"),
+                        tags$label("Tidpunkt 3", `for` = "io_sample_time3")
+                    )
+                ),
+                div(class = "col",
+                    div(class = "form-floating",
+                        tags$input(id = "io_conc_p3", type = "number", class = "form-control", placeholder = " ", min = 0, step = 1),
+                        tags$label("Konc. 3 (mg/L)", `for` = "io_conc_p3")
+                    )
+                )
             )
-          )
-      ),
-      div(class = "input-section",
-          h5("Kontroller", style = "color: #333;"),
-          tags$div(class = "mb-3",
-                   actionButton("io_clear", "Rensa alla fält", class = "action-button btn w-100")
-          )
+          ),
+          # --- Point 4 (side-by-side, conditional) ---
+          conditionalPanel(
+            condition = "input.num_points == 4",
+            div(class = "row g-2 mb-3",
+                div(class = "col",
+                    div(class = "form-floating",
+                        tags$input(id = "io_sample_time4", type = "text", class = "form-control", placeholder = "HH:MM"),
+                        tags$label("Tidpunkt 4", `for` = "io_sample_time4")
+                    )
+                ),
+                div(class = "col",
+                    div(class = "form-floating",
+                        tags$input(id = "io_conc_p4", type = "number", class = "form-control", placeholder = " ", min = 0, step = 1),
+                        tags$label("Konc. 4 (mg/L)", `for` = "io_conc_p4")
+                    )
+                )
+            )
+          ),
+          actionButton("io_clear", "Rensa alla fält", class = "action-button btn w-100")
       )
     ),
     mainPanel(
       width = 8,
-      div(class = "panel-header",
-          h4("Iohexolberäkning", style = "color: white; margin: 0;")
-      ),
-      div(class = "results-section",
-          uiOutput("io_result_ui"),
-          plotOutput("io_plot", height = "400px")
-      )
+      uiOutput("io_result_ui"),
+      plotOutput("io_plot")
     )
   )
 }
 
-# eGFR (Adults) tab UI
+# eGFR Adult tab UI
 egfr_adult_tab_ui <- function() {
   sidebarLayout(
     sidebarPanel(
       width = 4,
       div(class = "input-section",
-          h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
+                   tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 18, max = 120, step = 1),
                    tags$label("Ålder (år)", `for` = "age")
           ),
           tags$div(class = "form-floating mb-3",
@@ -217,62 +208,37 @@ egfr_adult_tab_ui <- function() {
                    tags$label("Kreatinin (µmol/L)", `for` = "creatinine")
           ),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "cysc", type = "number", class = "form-control", placeholder = " ", min = 0.2, max = 10, step = 0.01),
+                   tags$input(id = "cysc", type = "number", class = "form-control", placeholder = " ", min = 0.1, max = 10, step = 0.01),
                    tags$label("Cystatin C (mg/L)", `for` = "cysc")
-          )
-      ),
-      div(class = "input-section",
-          h5("Formler", style = "color: #333;"),
-          div(id="formulas_adult", class="shiny-input-checkboxgroup shiny-input-container",
-              lapply(names(EGFR_ADULT_FORMULAS), function(label) {
-                value <- EGFR_ADULT_FORMULAS[[label]]
-                checkbox_tag <- tags$div(class="checkbox",
-                                         tags$label(
-                                           tags$input(type="checkbox", name="formulas_adult", value=value),
-                                           tags$span(label)
-                                         ))
-                if (value == "BIS") {
-                  checkbox_tag$children[[1]]$children[[1]]$attribs$id <- "formula_bis"
-                }
-                if (value == "EKFC") {
-                  checkbox_tag$children[[1]]$children[[1]]$attribs$checked <- "checked"
-                }
-                return(checkbox_tag)
-              })
-          )
-      ),
-      div(class = "input-section",
-          class = "mb-3",
+          ),
+          tags$div(class = "mb-3",
+                   tags$label("Formler"),
+                   checkboxGroupInput("formulas_adult", label = NULL, choices = EGFR_ADULT_FORMULAS, selected = "EKFC")
+          ),
           actionButton("clear_adult", "Rensa alla fält", class = "action-button btn w-100")
       )
     ),
     mainPanel(
       width = 8,
-      div(class = "panel-header",
-          h4("eGFR (vuxna)", style = "color: white; margin: 0;")
-      ),
-      div(class = "results-section",
-          uiOutput("adult_results_ui")
-      )
+      uiOutput("adult_results_ui")
     )
   )
 }
 
-# eGFR (Children) tab UI
+# eGFR Child tab UI
 egfr_child_tab_ui <- function() {
   sidebarLayout(
     sidebarPanel(
       width = 4,
       div(class = "input-section",
-          h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "age_child", type = "number", class = "form-control", placeholder = " ", min = 0, max = 25, step = 1),
+                   tags$input(id = "age_child", type = "number", class = "form-control", placeholder = " ", min = 0, max = 18, step = 1),
                    tags$label("Ålder (år)", `for` = "age_child")
           ),
           tags$div(class = "form-floating mb-3",
                    tags$select(id = "sex_child", class = "form-select",
-                               tags$option("Pojke", value = "Man"),
-                               tags$option("Flicka", value = "Kvinna")),
+                               tags$option("Man", value = "Man"),
+                               tags$option("Kvinna", value = "Kvinna")),
                    tags$label("Kön", `for` = "sex_child")
           ),
           tags$div(class = "form-floating mb-3",
@@ -284,41 +250,19 @@ egfr_child_tab_ui <- function() {
                    tags$label("Kreatinin (µmol/L)", `for` = "creatinine_child")
           ),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "cysc_child", type = "number", class = "form-control", placeholder = " ", min = 0.2, max = 10, step = 0.01),
+                   tags$input(id = "cysc_child", type = "number", class = "form-control", placeholder = " ", min = 0.1, max = 10, step = 0.01),
                    tags$label("Cystatin C (mg/L)", `for` = "cysc_child")
-          )
-      ),
-      div(class = "input-section",
-          h5("Formler", style = "color: #333;"),
-          div(id="formulas_child", class="shiny-input-checkboxgroup shiny-input-container",
-              lapply(names(EGFR_CHILD_FORMULAS), function(label) {
-                value <- EGFR_CHILD_FORMULAS[[label]]
-                checkbox_tag <- tags$div(class="checkbox",
-                                         tags$label(
-                                           tags$input(type="checkbox", name="formulas_child", value=value),
-                                           tags$span(label)
-                                         ))
-                checkbox_tag$children[[1]]$children[[1]]$attribs$id <- paste0("formula_child_", value)
-                if (value == "Schwartz") {
-                  checkbox_tag$children[[1]]$children[[1]]$attribs$checked <- "checked"
-                }
-                return(checkbox_tag)
-              })
-          )
-      ),
-      div(class = "input-section",
-          class = "mb-3",
+          ),
+          tags$div(class = "mb-3",
+                   tags$label("Formler"),
+                   checkboxGroupInput("formulas_child", label = NULL, choices = EGFR_CHILD_FORMULAS, selected = "Schwartz")
+          ),
           actionButton("clear_child", "Rensa alla fält", class = "action-button btn w-100")
       )
     ),
     mainPanel(
       width = 8,
-      div(class = "panel-header",
-          h4("eGFR (barn)", style = "color: white; margin: 0;")
-      ),
-      div(class = "results-section",
-          uiOutput("child_results_ui")
-      )
+      uiOutput("child_results_ui")
     )
   )
 }
@@ -327,88 +271,130 @@ egfr_child_tab_ui <- function() {
 other_tab_ui <- function() {
   fluidPage(
     fluidRow(
-      # --- Left Column: Cockcroft-Gault ---
+      # --- Left Column: Cockcroft-Gault and Optimal provtagningstid ---
       column(6,
-             div(class = "input-section", style = "padding: 20px; margin-right: 10px;",
-                 h4("Cockcroft-Gault", style="margin-bottom: 20px;"),
-                 tags$div(class = "form-floating mb-3",
-                          tags$input(id = "cg_age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
-                          tags$label("Ålder (år)", `for` = "cg_age")
+             card(
+               style = "background-color: #f8f9fa;",
+               card_header("Cockcroft-Gault"),
+               card_body(
+                 padding = "0.5rem",
+                 div(class = "input-section",
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "cg_age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
+                              tags$label("Ålder (år)", `for` = "cg_age")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$select(id = "cg_sex", class = "form-select",
+                                          tags$option("Man", value = "Man"),
+                                          tags$option("Kvinna", value = "Kvinna")),
+                              tags$label("Kön", `for` = "cg_sex")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "cg_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
+                              tags$label("Vikt (kg)", `for` = "cg_weight")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "cg_creatinine", type = "number", class = "form-control", placeholder = " ", min = 1, max = 5000, step = 1),
+                              tags$label("Kreatinin (µmol/L)", `for` = "cg_creatinine")
+                     )
                  ),
-                 tags$div(class = "form-floating mb-3",
-                          tags$select(id = "cg_sex", class = "form-select",
-                                      tags$option("Man", value = "Man"),
-                                      tags$option("Kvinna", value = "Kvinna")),
-                          tags$label("Kön", `for` = "cg_sex")
+                 uiOutput("cg_result_ui"),
+                 actionButton("clear_cg", "Återställ", class = "action-button btn w-100")
+               )
+             ),
+             card(
+               style = "background-color: #f8f9fa;",
+               card_header("Optimal provtagningstid (enpunkt)"),
+               card_body(
+                 padding = "0.5rem",
+                 div(class = "input-section",
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "opt_age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
+                              tags$label("Ålder (år)", `for` = "opt_age")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$select(id = "opt_sex", class = "form-select",
+                                          tags$option("Man", value = "Man"),
+                                          tags$option("Kvinna", value = "Kvinna")),
+                              tags$label("Kön", `for` = "opt_sex")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "opt_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
+                              tags$label("Vikt (kg)", `for` = "opt_weight")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "opt_height", type = "number", class = "form-control", placeholder = " ", min = 100, max = 230, step = 1),
+                              tags$label("Längd (cm)", `for` = "opt_height")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "opt_egfr", type = "number", class = "form-control", placeholder = " ", min = 0, step = 1),
+                              tags$label("eGFR (mL/min/1.73m²)", `for` = "opt_egfr")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$select(id = "opt_bsa_formula", class = "form-select",
+                                          mapply(function(name, value) tags$option(name, value = value), names(BSA_FORMULAS), BSA_FORMULAS, SIMPLIFY = FALSE)),
+                              tags$label("BSA-formel", `for` = "opt_bsa_formula")
+                     )
                  ),
-                 tags$div(class = "form-floating mb-3",
-                          tags$input(id = "cg_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
-                          tags$label("Vikt (kg)", `for` = "cg_weight")
-                 ),
-                 tags$div(class = "form-floating mb-3",
-                          tags$input(id = "cg_creatinine", type = "number", class = "form-control", placeholder = " ", min = 1, max = 5000, step = 1),
-                          tags$label("Kreatinin (µmol/L)", `for` = "cg_creatinine")
-                 ),
-                 actionButton("clear_cg", "Rensa alla fält", class = "action-button btn w-100"),
-                 
-                 hr(style="margin-top: 30px; margin-bottom: 20px;"),
-                 
-                 uiOutput("cg_result_ui")
+                 uiOutput("opt_result_ui"),
+                 actionButton("clear_opt", "Återställ", class = "action-button btn w-100")
+               )
              )
       ),
       
       # --- Right Column: GFR Conversion ---
       column(6,
-             div(class = "input-section", style = "padding: 20px; margin-left: 10px;",
-                 h4("GFR-konvertering", style="margin-bottom: 20px;"),
-                 
-                 tags$div(class = "form-floating mb-3",
-                          tags$select(id = "gfr_conv_direction", class = "form-select",
-                                      tags$option("Absolut till relativ", value = "abs_to_rel"),
-                                      tags$option("Relativ till absolut", value = "rel_to_abs")),
-                          tags$label("Konverteringsriktning", `for` = "gfr_conv_direction")
+             card(
+               style = "background-color: #f8f9fa;",
+               card_header("GFR-konvertering"),
+               card_body(
+                 padding = "0.5rem",
+                 div(class = "input-section",
+                     tags$div(class = "form-floating mb-3",
+                              tags$select(id = "gfr_conv_direction", class = "form-select",
+                                          tags$option("Absolut till relativ", value = "abs_to_rel"),
+                                          tags$option("Relativ till absolut", value = "rel_to_abs")),
+                              tags$label("Konverteringsriktning", `for` = "gfr_conv_direction")
+                     ),
+                     
+                     conditionalPanel(
+                       condition = "input.gfr_conv_direction == 'abs_to_rel'",
+                       tags$div(class = "form-floating mb-3",
+                                tags$input(id = "gfr_abs", type = "number", class = "form-control", placeholder = " ", min = 0),
+                                tags$label("Absolut GFR (mL/min)", `for` = "gfr_abs")
+                       )
+                     ),
+                     conditionalPanel(
+                       condition = "input.gfr_conv_direction == 'rel_to_abs'",
+                       tags$div(class = "form-floating mb-3",
+                                tags$input(id = "gfr_rel", type = "number", class = "form-control", placeholder = " ", min = 0),
+                                tags$label("Relativ GFR (mL/min/1.73m²)", `for` = "gfr_rel")
+                       )
+                     ),
+                     
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "gfr_conv_height", type = "number", class = "form-control", placeholder = " ", min = 100, max = 230, step = 1),
+                              tags$label("Längd (cm)", `for` = "gfr_conv_height")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$input(id = "gfr_conv_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
+                              tags$label("Vikt (kg)", `for` = "gfr_conv_weight")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$select(id = "gfr_conv_sex", class = "form-select",
+                                          tags$option("Man", value = "Man"),
+                                          tags$option("Kvinna", value = "Kvinna")),
+                              tags$label("Kön", `for` = "gfr_conv_sex")
+                     ),
+                     tags$div(class = "form-floating mb-3",
+                              tags$select(id = "gfr_conv_bsa_formula", class = "form-select",
+                                          mapply(function(name, value) tags$option(name, value = value), names(BSA_FORMULAS), BSA_FORMULAS, SIMPLIFY = FALSE)),
+                              tags$label("BSA-formel", `for` = "gfr_conv_bsa_formula")
+                     )
                  ),
-                 
-                 conditionalPanel(
-                   condition = "input.gfr_conv_direction == 'abs_to_rel'",
-                   tags$div(class = "form-floating mb-3",
-                            tags$input(id = "gfr_abs", type = "number", class = "form-control", placeholder = " ", min = 0),
-                            tags$label("Absolut GFR (mL/min)", `for` = "gfr_abs")
-                   )
-                 ),
-                 conditionalPanel(
-                   condition = "input.gfr_conv_direction == 'rel_to_abs'",
-                   tags$div(class = "form-floating mb-3",
-                            tags$input(id = "gfr_rel", type = "number", class = "form-control", placeholder = " ", min = 0),
-                            tags$label("Relativ GFR (mL/min/1.73m²)", `for` = "gfr_rel")
-                   )
-                 ),
-                 
-                 tags$div(class = "form-floating mb-3",
-                          tags$input(id = "gfr_conv_height", type = "number", class = "form-control", placeholder = " ", min = 100, max = 230, step = 1),
-                          tags$label("Längd (cm)", `for` = "gfr_conv_height")
-                 ),
-                 tags$div(class = "form-floating mb-3",
-                          tags$input(id = "gfr_conv_weight", type = "number", class = "form-control", placeholder = " ", min = 30, max = 200, step = 1),
-                          tags$label("Vikt (kg)", `for` = "gfr_conv_weight")
-                 ),
-                 tags$div(class = "form-floating mb-3",
-                          tags$select(id = "gfr_conv_sex", class = "form-select",
-                                      tags$option("Man", value = "Man"),
-                                      tags$option("Kvinna", value = "Kvinna")),
-                          tags$label("Kön", `for` = "gfr_conv_sex")
-                 ),
-                 tags$div(class = "form-floating mb-3",
-                          tags$select(id = "gfr_conv_bsa_formula", class = "form-select",
-                                      mapply(function(name, value) tags$option(name, value = value), names(BSA_FORMULAS), BSA_FORMULAS, SIMPLIFY = FALSE)),
-                          tags$label("BSA-formel", `for` = "gfr_conv_bsa_formula")
-                 ),
-                 
-                 actionButton("clear_gfr_conv", "Rensa alla fält", class = "action-button btn w-100"),
-                 
-                 hr(style="margin-top: 30px; margin-bottom: 20px;"),
-                 
-                 uiOutput("gfr_conv_result_ui")
+                 uiOutput("gfr_conv_result_ui"),
+                 actionButton("clear_gfr_conv", "Återställ", class = "action-button btn w-100")
+               )
              )
       )
     )

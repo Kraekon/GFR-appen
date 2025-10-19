@@ -401,6 +401,24 @@ other_tab_ui <- function() {
   )
 }
 
+# Om tab UI
+om_tab_ui <- function() {
+  fluidPage(
+    fluidRow(
+      column(12,
+             card(
+               style = "background-color: #f8f9fa;",
+               card_body(
+                 padding = "0.5rem",
+                 tags$p("Skapad av Filip Landgren (filip.landgren@gmail.com)"),
+                 tags$p("Version 1.0")
+               )
+             )
+      )
+    )
+  )
+}
+
 # Main UI
 ui <- fluidPage(
   theme = bs_theme(version = 5, primary = "#007bff", "navbar-bg" = "#007bff", "navbar-fg" = "#ffffff"),
@@ -408,53 +426,54 @@ ui <- fluidPage(
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
     tags$style(HTML("
-  /* Hide number input spinners */
-  input[type=number]::-webkit-inner-spin-button, 
-  input[type=number]::-webkit-outer-spin-button { 
-    -webkit-appearance: none; 
-    margin: 0; 
-  }
-  input[type=number] {
-    -moz-appearance: textfield;
-  }
-  /* Navbar text and active tab styling */
-  .navbar .navbar-nav .nav-link {
-    color: #ffffff !important;
-  }
-  .navbar .navbar-nav .nav-link.active, .navbar .navbar-nav .nav-link:hover {
+      /* Hide number input spinners */
+      input[type=number]::-webkit-inner-spin-button, 
+      input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+      }
+      input[type=number] {
+        -moz-appearance: textfield;
+      }
+      /* Navbar text and active tab styling */
+      .navbar-nav .nav-link {
+        color: #ffffff !important;
+      }
+      .navbar .navbar-nav .nav-link.active, .navbar .navbar-nav .nav-link:hover {
     color: #ffffff !important;
     border-bottom: 2px solid #ffffff !important;
     border-bottom-width: 2px !important;
     border-bottom-style: solid !important;
     margin-bottom: 2px;
-    padding-bottom: 0.25rem;
+    padding-bottom: 0.4rem;
   }
   .navbar {
-    padding-bottom: 0.125rem;
+    padding-bottom: 0.1rem;
   }
-  /* MonoLisa-Bold font for navbar title */
-  @font-face {
-    font-family: 'MonoLisa-Bold';
-    src: url('MonoLisa-Bold.ttf') format('truetype');
-  }
-  .navbar-brand {
-    font-family: 'MonoLisa-Bold', sans-serif;
-    color: #ffffff !important;
-  }
-  /* Checkbox checkmark styling for eGFR tabs */
-  input[type='checkbox']:checked {
-    background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3E%3C/svg%3E\") !important;
-  }
-"))
+      /* MonoLisa-Bold font for navbar title */
+      @font-face {
+        font-family: 'MonoLisa-Bold';
+        src: url('MonoLisa-Bold.ttf') format('truetype');
+      }
+      .navbar-brand {
+        font-family: 'MonoLisa-Bold', sans-serif;
+        color: #ffffff !important;
+      }
+      /* Checkbox checkmark styling for eGFR tabs */
+      input[type='checkbox']:checked {
+        background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3E%3C/svg%3E\") !important;
+      }
+    "))
   ),
   div(class = "app-container",
       navbarPage(
-        title = "GFR-appen",
+        "GFR-appen",
         bg = "primary",
         tabPanel("Iohexolberäkning", iohexol_tab_ui()),
         tabPanel("eGFR (vuxna)", egfr_adult_tab_ui()),
         tabPanel("eGFR (barn)", egfr_child_tab_ui()),
-        tabPanel("Övrigt", other_tab_ui())
+        tabPanel("Övrigt", other_tab_ui()),
+        tabPanel("Om", om_tab_ui())
       )
   )
 )

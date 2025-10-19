@@ -1,4 +1,4 @@
-# Updated server.R with new calculator logic and updated clear button behavior
+# Updated server.R with conditional table rendering and relabeled eGFR table columns
 source("global.R")
 
 server <- function(input, output, session) {
@@ -15,14 +15,15 @@ server <- function(input, output, session) {
     updateSelectInput(session, "opt_sex", selected = "Man")
     updateSelectInput(session, "opt_bsa_formula", selected = "dubois")
     
-    shinyjs::disable("formula_bis")
+    # Initially disable BIS for adults
+    runjs("$('#formulas_adult input[value=\"BIS\"]').prop('disabled', true);")
     
     # Initially disable all conditional child formulas
-    shinyjs::disable("formula_child_CKiD_U25")
-    shinyjs::disable("formula_child_EKFC_child")
-    shinyjs::disable("formula_child_LMR18_child")
-    shinyjs::disable("formula_child_CAPA_child")
-    shinyjs::disable("formula_child_Zappitelli")
+    runjs("$('#formulas_child input[value=\"CKiD_U25\"]').prop('disabled', true);")
+    runjs("$('#formulas_child input[value=\"EKFC_child\"]').prop('disabled', true);")
+    runjs("$('#formulas_child input[value=\"LMR18_child\"]').prop('disabled', true);")
+    runjs("$('#formulas_child input[value=\"CAPA_child\"]').prop('disabled', true);")
+    runjs("$('#formulas_child input[value=\"Zappitelli\"]').prop('disabled', true);")
     
   }, once = TRUE)
   
@@ -30,10 +31,10 @@ server <- function(input, output, session) {
   observeEvent(input$age, {
     age_val <- input$age
     if (is.na(age_val) || age_val < 70) {
-      shinyjs::disable("formula_bis")
+      runjs("$('#formulas_adult input[value=\"BIS\"]').prop('disabled', true);")
       updateCheckboxGroupInput(session, "formulas_adult", selected = setdiff(input$formulas_adult, "BIS"))
     } else {
-      shinyjs::enable("formula_bis")
+      runjs("$('#formulas_adult input[value=\"BIS\"]').prop('disabled', false);")
     }
   }, ignoreNULL = FALSE)
   
@@ -41,20 +42,20 @@ server <- function(input, output, session) {
   observeEvent(input$age_child, {
     age <- input$age_child
     
-    manage_checkbox <- function(id, condition, value) {
+    manage_checkbox <- function(value, condition) {
       if (is.na(age) || !condition) {
-        shinyjs::disable(id)
+        runjs(sprintf("$('#formulas_child input[value=\"%s\"]').prop('disabled', true);", value))
         updateCheckboxGroupInput(session, "formulas_child", selected = setdiff(input$formulas_child, value))
       } else {
-        shinyjs::enable(id)
+        runjs(sprintf("$('#formulas_child input[value=\"%s\"]').prop('disabled', false);", value))
       }
     }
     
-    manage_checkbox("formula_child_CKiD_U25", age >= 1, "CKiD_U25")
-    manage_checkbox("formula_child_EKFC_child", age >= 2, "EKFC_child")
-    manage_checkbox("formula_child_LMR18_child", age >= 2 && age < 18, "LMR18_child")
-    manage_checkbox("formula_child_CAPA_child", age >= 1, "CAPA_child")
-    manage_checkbox("formula_child_Zappitelli", age >= 8 && age <= 17, "Zappitelli")
+    manage_checkbox("CKiD_U25", age >= 1)
+    manage_checkbox("EKFC_child", age >= 2)
+    manage_checkbox("LMR18_child", age >= 2 && age < 18)
+    manage_checkbox("CAPA_child", age >= 1)
+    manage_checkbox("Zappitelli", age >= 8 && age <= 17)
     
   }, ignoreNULL = FALSE)
   
@@ -62,19 +63,13 @@ server <- function(input, output, session) {
   
   output$adult_results_ui <- renderUI({
     age_val <- input$age
+    results <- tryCatch(results_adult(), error = function(e) NULL)
+    
     if (is.na(age_val)) {
-      tagList(
-        DT::dataTableOutput("resultsTable_adult"),
-        uiOutput("selectedMean_adult"),
-        uiOutput("asteriskNote_adult"),
-        conditionalPanel(
-          condition = "input.resultsTable_adult_rows_selected && input.resultsTable_adult_rows_selected.length > 0",
-          actionButton("clear_selection_adult", "Rensa val", class = "action-button-mini")
-        )
-      )
+      return(NULL)
     } else if (age_val < 18) {
       tags$div(class = "alert alert-warning", role = "alert", "Använd beräkning för barn")
-    } else {
+    } else if (!is.null(results) && nrow(results) > 0 && any(is_valid_num(results$Resultat))) {
       tagList(
         DT::dataTableOutput("resultsTable_adult"),
         uiOutput("selectedMean_adult"),
@@ -84,11 +79,13 @@ server <- function(input, output, session) {
           actionButton("clear_selection_adult", "Rensa val", class = "action-button-mini")
         )
       )
+    } else {
+      return(NULL)
     }
   })
   
   calc_egfr_adult <- function(scr_umol, scys, sex, age, formulas) {
-    rows <- data.frame(Resultat = character(), Value = character(), stringsAsFactors = FALSE)
+    rows <- data.frame(Formel = character(), Resultat = character(), stringsAsFactors = FALSE)
     scr_mgdl <- if (is_valid_num(scr_umol)) scr_umol / 88.4 else NA
     
     # Centralized Q-value calculations
@@ -98,55 +95,55 @@ server <- function(input, output, session) {
     if ("EKFC" %in% formulas) {
       if (is_valid_num(scr_mgdl)) {
         gfr_cr <- ekfc_gfr(scr_mgdl, ifelse(sex == "Man", 0.9, 0.7), -0.322, -1.132)
-        rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin)", Value = round(gfr_cr, 0)))
+        rows <- rbind(rows, data.frame(Formel = "EKFC (kreatinin)", Resultat = round(gfr_cr, 0)))
       }
       if (is_valid_num(scys)) {
         gfr_cys <- ekfc_gfr(scys, 0.83, -0.322, -1.132)
-        rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)", Value = round(gfr_cys, 0)))
+        rows <- rbind(rows, data.frame(Formel = "EKFC (cystatin C)", Resultat = round(gfr_cys, 0)))
         if (!is.na(q_sex_age_adj)) {
           gfr_cys_sexadj <- ekfc_gfr(scys, q_sex_age_adj, -0.322, -1.132)
-          rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)*", Value = round(gfr_cys_sexadj, 0)))
+          rows <- rbind(rows, data.frame(Formel = "EKFC (cystatin C)*", Resultat = round(gfr_cys_sexadj, 0)))
         }
       }
       if (is_valid_num(scr_mgdl) && is_valid_num(scys)) {
         gfr_cr <- ekfc_gfr(scr_mgdl, ifelse(sex == "Man", 0.9, 0.7), -0.322, -1.132)
         gfr_cys <- ekfc_gfr(scys, 0.83, -0.322, -1.132)
-        rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)", Value = round((gfr_cr + gfr_cys) / 2, 0)))
+        rows <- rbind(rows, data.frame(Formel = "EKFC (kreatinin & cystatin C)", Resultat = round((gfr_cr + gfr_cys) / 2, 0)))
         if (!is.na(q_sex_age_adj)) {
           gfr_cys_sexadj <- ekfc_gfr(scys, q_sex_age_adj, -0.322, -1.132)
-          rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)*", Value = round((gfr_cr + gfr_cys_sexadj) / 2, 0)))
+          rows <- rbind(rows, data.frame(Formel = "EKFC (kreatinin & cystatin C)*", Resultat = round((gfr_cr + gfr_cys_sexadj) / 2, 0)))
         }
       }
     }
     if ("FAS" %in% formulas) {
-      if (is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin)", Value = round(fas_gfr_cr(scr_mgdl, age), 0)))
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "FAS (cystatin C)", Value = round(fas_gfr_cys(scys, age), 0)))
-      if (is_valid_num(scr_mgdl) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "FAS (kreatinin & cystatin C)", Value = round((fas_gfr_cr(scr_mgdl, age) + fas_gfr_cys(scys, age)) / 2, 0)))
+      if (is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Formel = "FAS (kreatinin)", Resultat = round(fas_gfr_cr(scr_mgdl, age), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "FAS (cystatin C)", Resultat = round(fas_gfr_cys(scys, age), 0)))
+      if (is_valid_num(scr_mgdl) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "FAS (kreatinin & cystatin C)", Resultat = round((fas_gfr_cr(scr_mgdl, age) + fas_gfr_cys(scys, age)) / 2, 0)))
     }
     if ("r-LMR" %in% formulas) {
-      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin)", Value = round(r_lmr_gfr_cr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Formel = "r-LMR (kreatinin)", Resultat = round(r_lmr_gfr_cr(scr_umol, sex, age), 0)))
       if (is_valid_num(scys)) {
-        rows <- rbind(rows, data.frame(Resultat = "r-LMR (cystatin C)", Value = round(r_lmr_gfr_cys(scys, age, 0.83), 0)))
-        if (!is.na(q_age_adj_rlmr)) rows <- rbind(rows, data.frame(Resultat = "r-LMR (cystatin C)*", Value = round(r_lmr_gfr_cys(scys, age, q_age_adj_rlmr), 0)))
+        rows <- rbind(rows, data.frame(Formel = "r-LMR (cystatin C)", Resultat = round(r_lmr_gfr_cys(scys, age, 0.83), 0)))
+        if (!is.na(q_age_adj_rlmr)) rows <- rbind(rows, data.frame(Formel = "r-LMR (cystatin C)*", Resultat = round(r_lmr_gfr_cys(scys, age, q_age_adj_rlmr), 0)))
       }
-      if (is_valid_num(scr_umol) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "r-LMR (kreatinin & cystatin C)", Value = round((r_lmr_gfr_cr(scr_umol, sex, age) + r_lmr_gfr_cys(scys, age, 0.83)) / 2, 0)))
+      if (is_valid_num(scr_umol) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "r-LMR (kreatinin & cystatin C)", Resultat = round((r_lmr_gfr_cr(scr_umol, sex, age) + r_lmr_gfr_cys(scys, age, 0.83)) / 2, 0)))
     }
     if ("CKD-EPI (2021)" %in% formulas) {
-      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (kreatinin)", Value = round(ckdepi2021_gfr_cr(scr_umol, sex, age), 0)))
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (cystatin C)", Value = round(ckdepi2021_gfr_cys(scys, sex, age), 0)))
-      if (is_valid_num(scr_umol) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CKD-EPI (kreatinin & cystatin C)", Value = round(ckdepi2021_gfr_cr_cys(scr_umol, scys, sex, age), 0)))
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Formel = "CKD-EPI (kreatinin)", Resultat = round(ckdepi2021_gfr_cr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "CKD-EPI (cystatin C)", Resultat = round(ckdepi2021_gfr_cys(scys, sex, age), 0)))
+      if (is_valid_num(scr_umol) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "CKD-EPI (kreatinin & cystatin C)", Resultat = round(ckdepi2021_gfr_cr_cys(scr_umol, scys, sex, age), 0)))
     }
     if ("LMR18" %in% formulas) {
-      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "LMR18 (kreatinin)", Value = round(lmr18_gfr_cr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Formel = "LMR18 (kreatinin)", Resultat = round(lmr18_gfr_cr(scr_umol, sex, age), 0)))
     }
     if ("CAPA" %in% formulas) {
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CAPA (cystatin C)", Value = round(capa_gfr_cys(scys, age), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "CAPA (cystatin C)", Resultat = round(capa_gfr_cys(scys, age), 0)))
     }
     if ("MDRD" %in% formulas) {
-      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "MDRD (kreatinin)", Value = round(mdrd_gfr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Formel = "MDRD (kreatinin)", Resultat = round(mdrd_gfr(scr_umol, sex, age), 0)))
     }
     if ("BIS" %in% formulas) {
-      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "BIS (kreatinin)", Value = round(bis_gfr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Formel = "BIS (kreatinin)", Resultat = round(bis_gfr(scr_umol, sex, age), 0)))
     }
     rows
   }
@@ -163,14 +160,14 @@ server <- function(input, output, session) {
   output$selectedMean_adult <- renderUI({
     selected_rows <- input$resultsTable_adult_rows_selected
     if (length(selected_rows) > 0) {
-      selected_values <- as.numeric(results_adult()$Value[selected_rows])
+      selected_values <- as.numeric(results_adult()$Resultat[selected_rows])
       mean_val <- mean(selected_values, na.rm = TRUE)
       tags$div(style = "margin-top: 10px; font-weight: bold;", sprintf("Medelvärde av valda: %.1f", mean_val))
     }
   })
   
   output$asteriskNote_adult <- renderUI({
-    if (any(grepl("\\*", results_adult()$Resultat))) {
+    if (any(grepl("\\*", results_adult()$Formel))) {
       tags$p(style = "font-size: 0.8em; color: #666;", "* Ålders- och/eller könskorrigerad Q-värde för cystatin C")
     }
   })
@@ -179,19 +176,13 @@ server <- function(input, output, session) {
   
   output$child_results_ui <- renderUI({
     age_val <- input$age_child
+    results <- tryCatch(results_child(), error = function(e) NULL)
+    
     if (is.na(age_val)) {
-      tagList(
-        DT::dataTableOutput("resultsTable_child"),
-        uiOutput("selectedMean_child"),
-        uiOutput("asteriskNote_child"),
-        conditionalPanel(
-          condition = "input.resultsTable_child_rows_selected && input.resultsTable_child_rows_selected.length > 0",
-          actionButton("clear_selection_child", "Rensa val", class = "action-button-mini")
-        )
-      )
+      return(NULL)
     } else if (age_val >= 18) {
       tags$div(class = "alert alert-warning", role = "alert", "Använd beräkning för vuxna")
-    } else {
+    } else if (!is.null(results) && nrow(results) > 0 && any(is_valid_num(results$Resultat))) {
       tagList(
         DT::dataTableOutput("resultsTable_child"),
         uiOutput("selectedMean_child"),
@@ -201,36 +192,38 @@ server <- function(input, output, session) {
           actionButton("clear_selection_child", "Rensa val", class = "action-button-mini")
         )
       )
+    } else {
+      return(NULL)
     }
   })
   
   calc_egfr_child <- function(scr_umol, scys, sex, age, height_cm, formulas) {
-    rows <- data.frame(Resultat = character(), Value = character(), stringsAsFactors = FALSE)
+    rows <- data.frame(Formel = character(), Resultat = character(), stringsAsFactors = FALSE)
     scr_mgdl <- if (is_valid_num(scr_umol)) scr_umol / 88.4 else NA
     height_m <- if (is_valid_num(height_cm)) height_cm / 100 else NA
     
     if ("Schwartz" %in% formulas) {
-      if (is_valid_num(height_cm) && is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Resultat = "Schwartz (kreatinin)", Value = round(schwartz_gfr(height_cm, scr_mgdl), 0)))
+      if (is_valid_num(height_cm) && is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Formel = "Schwartz (kreatinin)", Resultat = round(schwartz_gfr(height_cm, scr_mgdl), 0)))
     }
     if ("CKiD_U25" %in% formulas) {
-      if (is_valid_num(height_m) && is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (kreatinin)", Value = round(ckid_u25_scr(sex, age, height_m, scr_mgdl), 0)))
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (cystatin C)", Value = round(ckid_u25_cys(sex, age, scys), 0)))
-      if (is_valid_num(height_m) && is_valid_num(scr_mgdl) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CKiD U25 (kreatinin & cystatin C)", Value = round(0.5 * ckid_u25_scr(sex, age, height_m, scr_mgdl) + 0.5 * ckid_u25_cys(sex, age, scys), 0)))
+      if (is_valid_num(height_m) && is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Formel = "CKiD U25 (kreatinin)", Resultat = round(ckid_u25_scr(sex, age, height_m, scr_mgdl), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "CKiD U25 (cystatin C)", Resultat = round(ckid_u25_cys(sex, age, scys), 0)))
+      if (is_valid_num(height_m) && is_valid_num(scr_mgdl) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "CKiD U25 (kreatinin & cystatin C)", Resultat = round(0.5 * ckid_u25_scr(sex, age, height_m, scr_mgdl) + 0.5 * ckid_u25_cys(sex, age, scys), 0)))
     }
     if ("EKFC_child" %in% formulas) {
-      if (is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin)", Value = round(ekfc_gfr(scr_mgdl, q_cr_child(sex, age) / 88.4, -0.322, -1.132), 0)))
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "EKFC (cystatin C)", Value = round(ekfc_gfr(scys, 0.83, -0.322, -1.132), 0)))
-      if (is_valid_num(scr_mgdl) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "EKFC (kreatinin & cystatin C)", Value = round((ekfc_gfr(scr_mgdl, q_cr_child(sex, age) / 88.4, -0.322, -1.132) + ekfc_gfr(scys, 0.83, -0.322, -1.132)) / 2, 0)))
+      if (is_valid_num(scr_mgdl)) rows <- rbind(rows, data.frame(Formel = "EKFC (kreatinin)", Resultat = round(ekfc_gfr(scr_mgdl, q_cr_child(sex, age) / 88.4, -0.322, -1.132), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "EKFC (cystatin C)", Resultat = round(ekfc_gfr(scys, 0.83, -0.322, -1.132), 0)))
+      if (is_valid_num(scr_mgdl) && is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "EKFC (kreatinin & cystatin C)", Resultat = round((ekfc_gfr(scr_mgdl, q_cr_child(sex, age) / 88.4, -0.322, -1.132) + ekfc_gfr(scys, 0.83, -0.322, -1.132)) / 2, 0)))
     }
     if ("LMR18_child" %in% formulas) {
-      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Resultat = "LMR18 (kreatinin)", Value = round(lmr18_gfr_child_cr(scr_umol, sex, age), 0)))
+      if (is_valid_num(scr_umol)) rows <- rbind(rows, data.frame(Formel = "LMR18 (kreatinin)", Resultat = round(lmr18_gfr_child_cr(scr_umol, sex, age), 0)))
     }
     if ("CAPA_child" %in% formulas) {
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "CAPA (cystatin C)", Value = round(capa_gfr_cys(scys, age), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "CAPA (cystatin C)", Resultat = round(capa_gfr_cys(scys, age), 0)))
     }
     if ("Zappitelli" %in% formulas) {
-      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Resultat = "Zappitelli (cystatin C)", Value = round(zappitelli_gfr_cys(scys), 0)))
-      if (is_valid_num(scr_umol) && is_valid_num(scys) && is_valid_num(height_cm)) rows <- rbind(rows, data.frame(Resultat = "Zappitelli (kreatinin & cystatin C)", Value = round(zappitelli_gfr_cys_cr(scr_umol, scys, height_cm), 0)))
+      if (is_valid_num(scys)) rows <- rbind(rows, data.frame(Formel = "Zappitelli (cystatin C)", Resultat = round(zappitelli_gfr_cys(scys), 0)))
+      if (is_valid_num(scr_umol) && is_valid_num(scys) && is_valid_num(height_cm)) rows <- rbind(rows, data.frame(Formel = "Zappitelli (kreatinin & cystatin C)", Resultat = round(zappitelli_gfr_cys_cr(scr_umol, scys, height_cm), 0)))
     }
     rows
   }
@@ -247,14 +240,14 @@ server <- function(input, output, session) {
   output$selectedMean_child <- renderUI({
     selected_rows <- input$resultsTable_child_rows_selected
     if (length(selected_rows) > 0) {
-      selected_values <- as.numeric(results_child()$Value[selected_rows])
+      selected_values <- as.numeric(results_child()$Resultat[selected_rows])
       mean_val <- mean(selected_values, na.rm = TRUE)
       tags$div(style = "margin-top: 10px; font-weight: bold;", sprintf("Medelvärde av valda: %.1f", mean_val))
     }
   })
   
   output$asteriskNote_child <- renderUI({
-    if (any(grepl("\\*", results_child()$Resultat))) {
+    if (any(grepl("\\*", results_child()$Formel))) {
       tags$p(style = "font-size: 0.8em; color: #666;", "* Ålders- och/eller könskorrigerad Q-värde för cystatin C")
     }
   })

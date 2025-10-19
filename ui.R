@@ -1,4 +1,4 @@
-# Updated ui.R with faint gray background for Övrigt tab cards
+# Updated ui.R with extended navbar padding and "Filip Landgren" below title
 library(bslib)
 library(htmltools)
 library(shiny)
@@ -403,25 +403,54 @@ other_tab_ui <- function() {
 
 # Main UI
 ui <- fluidPage(
-  theme = bs_theme(version = 5),
+  theme = bs_theme(version = 5, primary = "#007bff", "navbar-bg" = "#007bff", "navbar-fg" = "#ffffff"),
   useShinyjs(), # Initialize shinyjs
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "styles.css"),
     tags$style(HTML("
-      /* Hide number input spinners */
-      input[type=number]::-webkit-inner-spin-button, 
-      input[type=number]::-webkit-outer-spin-button { 
-        -webkit-appearance: none; 
-        margin: 0; 
-      }
-      input[type=number] {
-        -moz-appearance: textfield;
-      }
-    "))
+  /* Hide number input spinners */
+  input[type=number]::-webkit-inner-spin-button, 
+  input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
+  /* Navbar text and active tab styling */
+  .navbar .navbar-nav .nav-link {
+    color: #ffffff !important;
+  }
+  .navbar .navbar-nav .nav-link.active, .navbar .navbar-nav .nav-link:hover {
+    color: #ffffff !important;
+    border-bottom: 2px solid #ffffff !important;
+    border-bottom-width: 2px !important;
+    border-bottom-style: solid !important;
+    margin-bottom: 2px;
+    padding-bottom: 0.25rem;
+  }
+  .navbar {
+    padding-bottom: 0.125rem;
+  }
+  /* MonoLisa-Bold font for navbar title */
+  @font-face {
+    font-family: 'MonoLisa-Bold';
+    src: url('MonoLisa-Bold.ttf') format('truetype');
+  }
+  .navbar-brand {
+    font-family: 'MonoLisa-Bold', sans-serif;
+    color: #ffffff !important;
+  }
+  /* Checkbox checkmark styling for eGFR tabs */
+  input[type='checkbox']:checked {
+    background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3E%3C/svg%3E\") !important;
+  }
+"))
   ),
   div(class = "app-container",
       navbarPage(
-        "GFR-appen",
+        title = "GFR-appen",
+        bg = "primary",
         tabPanel("Iohexolberäkning", iohexol_tab_ui()),
         tabPanel("eGFR (vuxna)", egfr_adult_tab_ui()),
         tabPanel("eGFR (barn)", egfr_child_tab_ui()),

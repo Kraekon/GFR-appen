@@ -1,4 +1,5 @@
-# Updated ui.R with extended navbar padding and "Filip Landgren" below title
+# Updated ui.R with mb-3 spacing in Övrigt tab to match others.
+
 library(bslib)
 library(htmltools)
 library(shiny)
@@ -106,7 +107,6 @@ iohexol_tab_ui <- function() {
                                mapply(function(name, value) tags$option(name, value = value), names(NUM_POINTS_CHOICES), NUM_POINTS_CHOICES, SIMPLIFY = FALSE)),
                    tags$label("Antal mätpunkter", `for` = "num_points")
           ),
-          
           # --- Point 1 (side-by-side) ---
           div(class = "row g-2 mb-3",
               div(class = "col",
@@ -175,26 +175,26 @@ iohexol_tab_ui <- function() {
                     )
                 )
             )
-          ),
-          actionButton("io_clear", "Rensa alla fält", class = "action-button btn w-100")
-      )
+          )
+      ),
+      actionButton("io_clear", "Återställ", class = "action-button btn w-100")
     ),
     mainPanel(
-      width = 8,
       uiOutput("io_result_ui"),
       plotOutput("io_plot")
     )
   )
 }
 
-# eGFR Adult tab UI
+# eGFR (Adults) tab UI
 egfr_adult_tab_ui <- function() {
   sidebarLayout(
     sidebarPanel(
       width = 4,
       div(class = "input-section",
+          h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 18, max = 120, step = 1),
+                   tags$input(id = "age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
                    tags$label("Ålder (år)", `for` = "age")
           ),
           tags$div(class = "form-floating mb-3",
@@ -208,37 +208,39 @@ egfr_adult_tab_ui <- function() {
                    tags$label("Kreatinin (µmol/L)", `for` = "creatinine")
           ),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "cysc", type = "number", class = "form-control", placeholder = " ", min = 0.1, max = 10, step = 0.01),
+                   tags$input(id = "cysc", type = "number", class = "form-control", placeholder = " ", min = 0.2, max = 10, step = 0.01),
                    tags$label("Cystatin C (mg/L)", `for` = "cysc")
-          ),
-          tags$div(class = "mb-3",
-                   tags$label("Formler"),
-                   checkboxGroupInput("formulas_adult", label = NULL, choices = EGFR_ADULT_FORMULAS, selected = "EKFC")
-          ),
-          actionButton("clear_adult", "Rensa alla fält", class = "action-button btn w-100")
-      )
+          )
+      ),
+      div(class = "input-section",
+          h5("Formler", style = "color: #333;"),
+          checkboxGroupInput("formulas_adult", NULL,
+                             choices = EGFR_ADULT_FORMULAS,
+                             selected = "EKFC")
+      ),
+      actionButton("clear_adult", "Återställ", class = "action-button btn w-100")
     ),
     mainPanel(
-      width = 8,
       uiOutput("adult_results_ui")
     )
   )
 }
 
-# eGFR Child tab UI
+# eGFR (Children) tab UI
 egfr_child_tab_ui <- function() {
   sidebarLayout(
     sidebarPanel(
       width = 4,
       div(class = "input-section",
+          h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "age_child", type = "number", class = "form-control", placeholder = " ", min = 0, max = 18, step = 1),
+                   tags$input(id = "age_child", type = "number", class = "form-control", placeholder = " ", min = 0, max = 25, step = 1),
                    tags$label("Ålder (år)", `for` = "age_child")
           ),
           tags$div(class = "form-floating mb-3",
                    tags$select(id = "sex_child", class = "form-select",
-                               tags$option("Man", value = "Man"),
-                               tags$option("Kvinna", value = "Kvinna")),
+                               tags$option("Pojke", value = "Man"),
+                               tags$option("Flicka", value = "Kvinna")),
                    tags$label("Kön", `for` = "sex_child")
           ),
           tags$div(class = "form-floating mb-3",
@@ -250,24 +252,25 @@ egfr_child_tab_ui <- function() {
                    tags$label("Kreatinin (µmol/L)", `for` = "creatinine_child")
           ),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "cysc_child", type = "number", class = "form-control", placeholder = " ", min = 0.1, max = 10, step = 0.01),
+                   tags$input(id = "cysc_child", type = "number", class = "form-control", placeholder = " ", min = 0.2, max = 10, step = 0.01),
                    tags$label("Cystatin C (mg/L)", `for` = "cysc_child")
-          ),
-          tags$div(class = "mb-3",
-                   tags$label("Formler"),
-                   checkboxGroupInput("formulas_child", label = NULL, choices = EGFR_CHILD_FORMULAS, selected = "Schwartz")
-          ),
-          actionButton("clear_child", "Rensa alla fält", class = "action-button btn w-100")
-      )
+          )
+      ),
+      div(class = "input-section",
+          h5("Formler", style = "color: #333;"),
+          checkboxGroupInput("formulas_child", NULL,
+                             choices = EGFR_CHILD_FORMULAS,
+                             selected = "Schwartz")
+      ),
+      actionButton("clear_child", "Återställ", class = "action-button btn w-100")
     ),
     mainPanel(
-      width = 8,
       uiOutput("child_results_ui")
     )
   )
 }
 
-# "Other" tab UI
+# Other tab UI with mb-3 spacing
 other_tab_ui <- function() {
   fluidPage(
     fluidRow(
@@ -341,7 +344,6 @@ other_tab_ui <- function() {
                )
              )
       ),
-      
       # --- Right Column: GFR Conversion ---
       column(6,
              card(
@@ -356,7 +358,6 @@ other_tab_ui <- function() {
                                           tags$option("Relativ till absolut", value = "rel_to_abs")),
                               tags$label("Konverteringsriktning", `for` = "gfr_conv_direction")
                      ),
-                     
                      conditionalPanel(
                        condition = "input.gfr_conv_direction == 'abs_to_rel'",
                        tags$div(class = "form-floating mb-3",
@@ -371,7 +372,6 @@ other_tab_ui <- function() {
                                 tags$label("Relativ GFR (mL/min/1.73m²)", `for` = "gfr_rel")
                        )
                      ),
-                     
                      tags$div(class = "form-floating mb-3",
                               tags$input(id = "gfr_conv_height", type = "number", class = "form-control", placeholder = " ", min = 100, max = 230, step = 1),
                               tags$label("Längd (cm)", `for` = "gfr_conv_height")
@@ -405,13 +405,16 @@ other_tab_ui <- function() {
 om_tab_ui <- function() {
   fluidPage(
     fluidRow(
-      column(12,
+      column(6, offset = 3,
              card(
                style = "background-color: #f8f9fa;",
                card_body(
                  padding = "0.5rem",
-                 tags$p("Skapad av Filip Landgren (filip.landgren@gmail.com)"),
-                 tags$p("Version 1.0")
+                 style = "text-align: center;",
+                 tags$p(tags$span("Skapad av ", style = "color: #333;"), 
+                        tags$span("Filip Landgren", style = "color: #007bff;"), 
+                        tags$span(" (filip.landgren@gmail.com)", style = "color: #333;")),
+                 tags$p(tags$span("Version 1.0", style = "font-weight: bold;"))
                )
              )
       )
@@ -440,16 +443,16 @@ ui <- fluidPage(
         color: #ffffff !important;
       }
       .navbar .navbar-nav .nav-link.active, .navbar .navbar-nav .nav-link:hover {
-    color: #ffffff !important;
-    border-bottom: 2px solid #ffffff !important;
-    border-bottom-width: 2px !important;
-    border-bottom-style: solid !important;
-    margin-bottom: 2px;
-    padding-bottom: 0.4rem;
-  }
-  .navbar {
-    padding-bottom: 0.1rem;
-  }
+        color: #ffffff !important;
+        border-bottom: 2px solid #ffffff !important;
+        border-bottom-width: 2px !important;
+        border-bottom-style: solid !important;
+        margin-bottom: 2px;
+        padding-bottom: 0.4rem;
+      }
+      .navbar {
+        padding-bottom: 0.1rem;
+      }
       /* MonoLisa-Bold font for navbar title */
       @font-face {
         font-family: 'MonoLisa-Bold';

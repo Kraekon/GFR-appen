@@ -5,7 +5,7 @@ account: v1nznv-filip-landgren
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 15671889
-bundleId: 11050421
+bundleId: 11055153
 url: https://v1nznv-filip-landgren.shinyapps.io/GFR-appen/
 version: 1
 asMultiple: FALSE

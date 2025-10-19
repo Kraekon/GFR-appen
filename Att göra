@@ -3,3 +3,23 @@ Visa instruktion/varning om någon input inte är ifylld
   
   
 Mobilanpassa
+
+
+Updateringar
+1
+# In RStudio Terminal or Git tab
+git add .
+git commit -m "Your commit message"
+git push
+
+2
+ssh deploy@72.61.177.23
+
+3
+sudo deploy-shiny
+
+
+
+
+Lokal push till VPS
+./deploy-shiny.sh

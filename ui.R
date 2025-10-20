@@ -61,10 +61,6 @@ iohexol_tab_ui <- function() {
       div(class = "input-section",
           h5("Patient", style = "color: #333;"),
           tags$div(class = "form-floating mb-3",
-                   tags$input(id = "io_age", type = "number", class = "form-control", placeholder = " ", min = 18, max = 120, step = 1),
-                   tags$label("Ålder (år)", `for` = "io_age")
-          ),
-          tags$div(class = "form-floating mb-3",
                    tags$select(id = "io_sex", class = "form-select",
                                tags$option("Man", value = "Man"),
                                tags$option("Kvinna", value = "Kvinna")),
@@ -312,10 +308,6 @@ other_tab_ui <- function() {
                  padding = "0.5rem",
                  div(class = "input-section",
                      tags$div(class = "form-floating mb-3",
-                              tags$input(id = "opt_age", type = "number", class = "form-control", placeholder = " ", min = 0, max = 120, step = 1),
-                              tags$label("Ålder (år)", `for` = "opt_age")
-                     ),
-                     tags$div(class = "form-floating mb-3",
                               tags$select(id = "opt_sex", class = "form-select",
                                           tags$option("Man", value = "Man"),
                                           tags$option("Kvinna", value = "Kvinna")),
@@ -453,13 +445,8 @@ ui <- fluidPage(
       .navbar {
         padding-bottom: 0.1rem;
       }
-      /* MonoLisa-Bold font for navbar title */
-      @font-face {
-        font-family: 'MonoLisa-Bold';
-        src: url('MonoLisa-Bold.ttf') format('truetype');
-      }
       .navbar-brand {
-        font-family: 'MonoLisa-Bold', sans-serif;
+        font-weight: bold;
         color: #ffffff !important;
       }
       /* Checkbox checkmark styling for eGFR tabs */

@@ -300,7 +300,7 @@ server <- function(input, output, session) {
   # --- Iohexol Calculation Section ---
   
   observe({
-    req(input$io_age, input$io_sex, input$io_weight, input$io_height, input$io_conc_inj,
+    req(input$io_sex, input$io_weight, input$io_height, input$io_conc_inj,
         input$io_vol_inj, input$io_inj_time, input$io_bsa_formula, input$num_points)
     
     num_points <- as.numeric(input$num_points)
@@ -533,8 +533,7 @@ server <- function(input, output, session) {
       }
     })
     
-    # Optimal provtagningstid
-    opt_age <- input$opt_age
+    # Optimal sampling time
     opt_sex <- input$opt_sex
     opt_weight <- input$opt_weight
     opt_height <- input$opt_height
@@ -542,7 +541,7 @@ server <- function(input, output, session) {
     opt_bsa_formula <- input$opt_bsa_formula
     
     output$opt_result_ui <- renderUI({
-      if (!is_valid_num(c(opt_age, opt_weight, opt_height, opt_egfr)) || is.null(opt_sex) || is.null(opt_bsa_formula)) {
+      if (!is_valid_num(c(opt_weight, opt_height, opt_egfr)) || is.null(opt_sex) || is.null(opt_bsa_formula)) {
         return(NULL)
       }
       eecv <- jacobsson_eecv(opt_sex, opt_weight)
@@ -608,7 +607,6 @@ server <- function(input, output, session) {
   # --- Controls / clear buttons ---
   
   observeEvent(input$io_clear, {
-    updateNumericInput(session, "io_age", value = NA)
     updateSelectInput(session, "io_sex", selected = "Man")
     updateNumericInput(session, "io_weight", value = NA)
     updateNumericInput(session, "io_height", value = NA)
@@ -660,7 +658,6 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$clear_opt, {
-    updateNumericInput(session, "opt_age", value = NA)
     updateSelectInput(session, "opt_sex", selected = "Man")
     updateNumericInput(session, "opt_weight", value = NA)
     updateNumericInput(session, "opt_height", value = NA)
